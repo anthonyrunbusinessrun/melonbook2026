@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic";
 import { query } from '@/db';
 import { Users, Shield, Activity, Clock, CheckCircle, XCircle } from 'lucide-react';
 

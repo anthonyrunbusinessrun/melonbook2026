@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic";
 import { query, queryOne } from '@/db';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';

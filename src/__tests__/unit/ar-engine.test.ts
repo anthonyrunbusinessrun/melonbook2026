@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   computeTotalInvoiced,
   computeBalanceDue,
-} from '../lib/ar-engine';
+} from '@/lib/ar-engine';
 
 describe('AR Formula Engine', () => {
   describe('computeTotalInvoiced', () => {

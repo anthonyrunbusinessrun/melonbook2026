@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic";
 import { query } from '@/db';
 import { AlertTriangle, CheckCircle, Info, XCircle } from 'lucide-react';
 

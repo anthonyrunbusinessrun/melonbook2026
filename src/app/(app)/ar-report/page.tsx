@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic";
 import { buildARReport, exportARToExcel } from '@/lib/ar-engine';
 import { Download, Filter, RefreshCw, AlertCircle } from 'lucide-react';
 import Link from 'next/link';

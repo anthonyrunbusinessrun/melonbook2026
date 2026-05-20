@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic";
 import { query } from '@/db';
 import { Truck, Search, ExternalLink } from 'lucide-react';
 

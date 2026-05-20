@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic";
 import { getARSummary } from '@/lib/ar-engine';
 import { query } from '@/db';
 import {
