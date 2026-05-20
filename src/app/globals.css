@@ -1,0 +1,114 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,600&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-dm-sans: 'DM Sans', sans-serif;
+  --font-cormorant: 'Cormorant Garamond', serif;
+}
+
+@layer base {
+  * { box-sizing: border-box; }
+  
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: #0D1A0A; }
+  ::-webkit-scrollbar-thumb { background: #2D4A22; border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: #4A7A35; }
+}
+
+@layer components {
+  .btn-primary {
+    @apply px-4 py-2 bg-brand-midgreen text-white rounded text-sm font-medium
+      hover:bg-brand-green transition-colors duration-150 disabled:opacity-40;
+  }
+  .btn-secondary {
+    @apply px-4 py-2 bg-brand-forest border border-brand-green/40 text-brand-cream 
+      rounded text-sm font-medium hover:border-brand-sage/60 transition-colors;
+  }
+  .btn-danger {
+    @apply px-4 py-2 bg-brand-red text-white rounded text-sm font-medium 
+      hover:bg-brand-brightred transition-colors;
+  }
+  .btn-gold {
+    @apply px-4 py-2 bg-brand-gold text-brand-dark rounded text-sm font-semibold 
+      hover:bg-brand-deepgold transition-colors;
+  }
+  
+  .card {
+    @apply bg-brand-forest border border-brand-green/20 rounded-lg;
+  }
+  
+  .stat-card {
+    @apply card p-4 flex flex-col gap-1;
+  }
+  
+  .input {
+    @apply w-full bg-brand-dark border border-brand-green/30 rounded px-3 py-2 
+      text-sm text-brand-cream placeholder:text-brand-sage/40
+      focus:outline-none focus:border-brand-sage/60 focus:ring-1 focus:ring-brand-sage/30
+      transition-colors;
+  }
+  
+  .select {
+    @apply input cursor-pointer;
+  }
+  
+  .label {
+    @apply text-xs font-medium text-brand-sage uppercase tracking-wider;
+  }
+  
+  .table-row-hover {
+    @apply hover:bg-brand-green/10 transition-colors duration-100;
+  }
+  
+  .badge {
+    @apply inline-flex items-center px-2 py-0.5 rounded text-xs font-medium;
+  }
+  .badge-green  { @apply badge bg-brand-green/20 text-brand-sage border border-brand-green/30; }
+  .badge-gold   { @apply badge bg-brand-gold/20 text-brand-gold border border-brand-gold/30; }
+  .badge-red    { @apply badge bg-brand-red/20 text-brand-brightred border border-brand-red/30; }
+  .badge-gray   { @apply badge bg-brand-dark/60 text-brand-warm/60 border border-brand-green/10; }
+  
+  .section-title {
+    @apply font-display text-2xl font-semibold text-brand-cream;
+  }
+  
+  .sidebar-link {
+    @apply flex items-center gap-2.5 px-3 py-2 rounded text-sm text-brand-warm/70
+      hover:text-brand-cream hover:bg-brand-green/20 transition-all duration-150;
+  }
+  .sidebar-link.active {
+    @apply text-brand-cream bg-brand-green/30 border-l-2 border-brand-sage;
+  }
+}
+
+/* Dense table styles */
+.ops-table {
+  @apply w-full text-xs;
+  border-collapse: collapse;
+}
+.ops-table th {
+  @apply bg-brand-dark text-brand-sage/80 uppercase tracking-wider text-left
+    px-3 py-2 font-medium sticky top-0 z-10 border-b border-brand-green/20;
+}
+.ops-table td {
+  @apply px-3 py-1.5 border-b border-brand-green/10 text-brand-warm/90;
+}
+.ops-table tr:hover td {
+  @apply bg-brand-green/10;
+}
+
+/* Money display */
+.money-positive { @apply text-brand-sage font-mono tabular-nums; }
+.money-negative { @apply text-brand-brightred font-mono tabular-nums; }
+.money-zero     { @apply text-brand-warm/40 font-mono tabular-nums; }
+.money          { @apply font-mono tabular-nums text-brand-warm; }
+
+/* Pulse animation for sync status */
+@keyframes pulse-green {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+.sync-pulse { animation: pulse-green 2s ease-in-out infinite; }
