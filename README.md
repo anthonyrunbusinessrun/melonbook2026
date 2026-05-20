@@ -18,10 +18,7 @@ npm run db:seed
 npm run dev
 ```
 
-**Default Credentials (after seed):**
-- admin@raymonjland.com / Admin2026! (Admin)
-- accounting@raymonjland.com / Acctg2026! (Accounting)
-- sales@raymonjland.com / Sales2026! (Sales/Logistics)
+For production, set `INITIAL_ADMIN_PASSWORD` before running the seed script. Passwords are never printed in production logs.
 
 ## Railway Deploy
 
@@ -31,7 +28,13 @@ railway run npm run db:migrate
 railway run npm run db:seed
 ```
 
-**Required env vars:** DATABASE_URL, AIRTABLE_API_KEY, AIRTABLE_BASE_ID=appmnU55C5f7A50U4, NEXTAUTH_SECRET, NEXTAUTH_URL
+**Required env vars:** DATABASE_URL, REDIS_URL, AIRTABLE_API_KEY, AIRTABLE_BASE_ID=appmnU55C5f7A50U4, NEXTAUTH_SECRET, NEXTAUTH_URL, INTERNAL_API_TOKEN, INITIAL_ADMIN_PASSWORD.
+
+Set the worker service start command to:
+
+```bash
+node worker/index.js
+```
 
 ## AR Report Logic
 

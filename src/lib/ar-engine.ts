@@ -219,7 +219,6 @@ export async function buildARReport(
     ? await buildARFromVoucherAmounts(options)
     : null;
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const source: any[] = arRowsFromVouchers || rows;
 
   // Group by customer

@@ -25,6 +25,17 @@ export default withAuth(
     callbacks: {
       authorized: ({ token, req }) => {
         const path = req.nextUrl.pathname;
+        const internalToken = req.headers.get('x-internal-token');
+        const expectedInternalToken = process.env.INTERNAL_API_TOKEN;
+
+        if (
+          path.startsWith('/api/sync') &&
+          expectedInternalToken &&
+          internalToken === expectedInternalToken
+        ) {
+          return true;
+        }
+
         // Allow public paths
         if (path.startsWith('/login') || path.startsWith('/api/health') || path.startsWith('/api/webhooks')) {
           return true;

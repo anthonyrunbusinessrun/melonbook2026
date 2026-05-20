@@ -631,5 +631,19 @@ export async function reconcileAR(): Promise<{
     });
   }
 
+  for (const anomaly of anomalies) {
+    await query(`
+      INSERT INTO anomaly_flags (table_name, flag_type, severity, description)
+      SELECT 'vouchers', $1, $2, $3
+      WHERE NOT EXISTS (
+        SELECT 1 FROM anomaly_flags
+        WHERE table_name = 'vouchers'
+          AND flag_type = $1
+          AND description = $3
+          AND resolved = false
+      )
+    `, [anomaly.type, anomaly.severity, anomaly.description]);
+  }
+
   return { pgInvoiced, pgPaid, pgBalance, anomalies };
 }

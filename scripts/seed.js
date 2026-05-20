@@ -13,12 +13,49 @@ const pool = new Pool({
     : false,
 });
 
+const isProduction = process.env.NODE_ENV === 'production';
+
+function requirePassword(envName) {
+  const value = process.env[envName];
+  if (value) return value;
+  throw new Error(`${envName} is required`);
+}
+
 const USERS = [
-  { email: 'admin@raymonjland.com',      name: 'System Admin',      role: 'admin',           password: 'Admin2026!' },
-  { email: 'accounting@raymonjland.com', name: 'Accounting',        role: 'accounting',      password: 'Acctg2026!' },
-  { email: 'sales@raymonjland.com',      name: 'Sales & Logistics', role: 'sales_logistics', password: 'Sales2026!' },
-  { email: 'readonly@raymonjland.com',   name: 'Read Only User',    role: 'readonly',        password: 'View2026!'  },
+  {
+    email: process.env.INITIAL_ADMIN_EMAIL || 'admin@raymonjland.com',
+    name: process.env.INITIAL_ADMIN_NAME || 'System Admin',
+    role: 'admin',
+    password: requirePassword('INITIAL_ADMIN_PASSWORD'),
+  },
 ];
+
+if (process.env.INITIAL_ACCOUNTING_PASSWORD) {
+  USERS.push({
+    email: process.env.INITIAL_ACCOUNTING_EMAIL || 'accounting@raymonjland.com',
+    name: 'Accounting',
+    role: 'accounting',
+    password: requirePassword('INITIAL_ACCOUNTING_PASSWORD'),
+  });
+}
+
+if (process.env.INITIAL_SALES_PASSWORD) {
+  USERS.push({
+    email: process.env.INITIAL_SALES_EMAIL || 'sales@raymonjland.com',
+    name: 'Sales & Logistics',
+    role: 'sales_logistics',
+    password: requirePassword('INITIAL_SALES_PASSWORD'),
+  });
+}
+
+if (process.env.INITIAL_READONLY_PASSWORD) {
+  USERS.push({
+    email: process.env.INITIAL_READONLY_EMAIL || 'readonly@raymonjland.com',
+    name: 'Read Only User',
+    role: 'readonly',
+    password: requirePassword('INITIAL_READONLY_PASSWORD'),
+  });
+}
 
 async function seed() {
   const client = await pool.connect();
@@ -39,7 +76,7 @@ async function seed() {
           'INSERT INTO app_users (email, name, role, hashed_password) VALUES ($1, $2, $3, $4)',
           [user.email, user.name, user.role, hash]
         );
-        console.log(`✓ Created: ${user.email} (${user.role}) — password: ${user.password}`);
+        console.log(`✓ Created: ${user.email} (${user.role})`);
       }
     }
 
@@ -66,9 +103,8 @@ async function seed() {
     }
     console.log(`\n✓ Seeded ${customers.length} demo customers`);
     console.log('\n✓ Seed complete');
-    console.log('\nDefault credentials:');
-    for (const user of USERS) {
-      console.log(`  ${user.email} / ${user.password} (${user.role})`);
+    if (!isProduction) {
+      console.log('\nDevelopment seed users created. Production never prints passwords.');
     }
   } finally {
     client.release();

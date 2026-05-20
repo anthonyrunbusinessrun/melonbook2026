@@ -4,11 +4,45 @@
  * Runs scheduled jobs: sync, reconciliation, anomaly detection
  */
 
-const { runFullSync, processOutbox, reconcileAR } = require('../src/lib/sync');
-const { query } = require('../src/db');
-
 console.log('[Worker] MelonOps Background Worker starting...');
 console.log(`[Worker] Environment: ${process.env.NODE_ENV || 'development'}`);
+
+const APP_URL = process.env.INTERNAL_API_BASE_URL || process.env.NEXTAUTH_URL;
+const INTERNAL_API_TOKEN = process.env.INTERNAL_API_TOKEN;
+
+if (!APP_URL) {
+  console.error('[Worker] Missing INTERNAL_API_BASE_URL or NEXTAUTH_URL');
+  process.exit(1);
+}
+
+if (!INTERNAL_API_TOKEN) {
+  console.error('[Worker] Missing INTERNAL_API_TOKEN');
+  process.exit(1);
+}
+
+async function callSyncEndpoint(type) {
+  const response = await fetch(`${APP_URL.replace(/\/$/, '')}/api/sync/${type}`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'x-internal-token': INTERNAL_API_TOKEN,
+    },
+  });
+
+  const text = await response.text();
+  let payload;
+  try {
+    payload = text ? JSON.parse(text) : {};
+  } catch {
+    payload = { raw: text };
+  }
+
+  if (!response.ok) {
+    throw new Error(`${type} failed with ${response.status}: ${JSON.stringify(payload)}`);
+  }
+
+  return payload.result ?? payload;
+}
 
 // ============================================================
 // JOB RUNNERS
@@ -17,7 +51,7 @@ async function runSyncJob() {
   console.log('[Job] Starting full Airtable sync...');
   const start = Date.now();
   try {
-    const results = await runFullSync();
+    const results = await callSyncEndpoint('full');
     const elapsed = ((Date.now() - start) / 1000).toFixed(1);
     console.log(`[Job] Sync complete in ${elapsed}s:`, JSON.stringify(results));
   } catch (e) {
@@ -27,7 +61,7 @@ async function runSyncJob() {
 
 async function runOutboxJob() {
   try {
-    const results = await processOutbox(50);
+    const results = await callSyncEndpoint('outbox');
     if (results.processed > 0 || results.failed > 0) {
       console.log(`[Job] Outbox: processed ${results.processed}, failed ${results.failed}`);
     }
@@ -39,17 +73,8 @@ async function runOutboxJob() {
 async function runReconcileJob() {
   console.log('[Job] Running AR reconciliation...');
   try {
-    const result = await reconcileAR();
+    const result = await callSyncEndpoint('reconcile');
     console.log(`[Job] Reconciliation: invoiced=${result.pgInvoiced}, paid=${result.pgPaid}, balance=${result.pgBalance}`);
-
-    // Store anomalies
-    for (const anomaly of result.anomalies) {
-      await query(`
-        INSERT INTO anomaly_flags (table_name, flag_type, severity, description)
-        VALUES ('vouchers', $1, $2, $3)
-        ON CONFLICT DO NOTHING
-      `, [anomaly.type, anomaly.severity, anomaly.description]);
-    }
 
     if (result.anomalies.length > 0) {
       console.log(`[Job] ⚠️  ${result.anomalies.length} anomalies detected`);

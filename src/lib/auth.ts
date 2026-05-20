@@ -4,6 +4,12 @@ import CredentialsProvider from 'next-auth/providers/credentials';
 import bcrypt from 'bcryptjs';
 import { queryOne } from '@/db';
 
+const nextAuthSecret = process.env.NEXTAUTH_SECRET;
+
+if (process.env.NODE_ENV === 'production' && !nextAuthSecret) {
+  throw new Error('NEXTAUTH_SECRET is required in production');
+}
+
 export const authOptions: NextAuthOptions = {
   providers: [
     CredentialsProvider({
@@ -47,7 +53,7 @@ export const authOptions: NextAuthOptions = {
   },
   pages: { signIn: '/login' },
   session: { strategy: 'jwt', maxAge: 8 * 60 * 60 },
-  secret: process.env.NEXTAUTH_SECRET || 'melonops-dev-secret-change-in-production',
+  secret: nextAuthSecret || 'melonops-dev-secret-change-in-production',
 };
 
 export const { handlers, signIn, signOut, auth } = NextAuth(authOptions);
