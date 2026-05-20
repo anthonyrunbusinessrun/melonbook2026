@@ -525,7 +525,7 @@ BEGIN
     RETURN NEW;
   END IF;
   INSERT INTO sync_outbox (table_name, record_id, airtable_record_id, operation, payload)
-  VALUES (TG_TABLE_NAME, NEW.id, NEW.airtable_record_id, TG_OP::TEXT::TEXT, row_to_json(NEW)::jsonb)
+  VALUES (TG_TABLE_NAME, NEW.id, NEW.airtable_record_id, LOWER(TG_OP::TEXT), row_to_json(NEW)::jsonb)
   ON CONFLICT DO NOTHING;
   RETURN NEW;
 END;
