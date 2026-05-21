@@ -12,6 +12,7 @@ export async function GET() {
       db: dbRow ? 'connected' : 'error',
       timestamp: new Date().toISOString(),
       app: 'MelonOps — Raymon J Land',
+      commit: process.env.RAILWAY_GIT_COMMIT_SHA || process.env.VERCEL_GIT_COMMIT_SHA || 'local',
     });
   } catch (e) {
     return NextResponse.json({
