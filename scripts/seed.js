@@ -21,14 +21,18 @@ function requirePassword(envName) {
   throw new Error(`${envName} is required`);
 }
 
-const USERS = [
-  {
+const USERS = [];
+
+if (process.env.INITIAL_ADMIN_PASSWORD) {
+  USERS.push({
     email: process.env.INITIAL_ADMIN_EMAIL || 'admin@raymonjland.com',
     name: process.env.INITIAL_ADMIN_NAME || 'System Admin',
     role: 'admin',
     password: requirePassword('INITIAL_ADMIN_PASSWORD'),
-  },
-];
+  });
+} else {
+  console.log('ℹ INITIAL_ADMIN_PASSWORD not set; skipping app user seed for this service.');
+}
 
 if (process.env.INITIAL_ACCOUNTING_PASSWORD) {
   USERS.push({
