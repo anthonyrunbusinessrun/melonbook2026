@@ -575,3 +575,79 @@ export async function getARSummary(): Promise<{
     overdueCount: Number(row.overdue_count),
   };
 }
+
+// ───────────────────────────────────────────────────────────────────────────
+// Mirror-based AR summary (from airtable_records raw data)
+// ───────────────────────────────────────────────────────────────────────────
+
+export async function getMirrorARSummary() {
+  try {
+    const [inv1152, credits1152, paid1122, accts] = await Promise.all([
+      // 1152 Debits = Invoiced Total
+      query<{ count: string; total: string }>(
+        `SELECT COUNT(*) as count,
+          COALESCE(SUM(NULLIF((raw_fields->>'Debit')::text,'')::numeric), 0)::text as total
+         FROM airtable_records
+         WHERE table_id = 'tblfNYrQKvtOwslbr'
+           AND (raw_fields->>'Trans #') LIKE 'DR1152%'`
+      ),
+      // 1152 Credits = Payments Applied to AR
+      query<{ count: string; total: string }>(
+        `SELECT COUNT(*) as count,
+          COALESCE(SUM(NULLIF((raw_fields->>'Credit')::text,'')::numeric), 0)::text as total
+         FROM airtable_records
+         WHERE table_id = 'tblfNYrQKvtOwslbr'
+           AND (raw_fields->>'Trans #') LIKE 'CR1152%'`
+      ),
+      // 1122 Credits = Payments Received (Undeposited Funds)
+      query<{ count: string; total: string }>(
+        `SELECT COUNT(*) as count,
+          COALESCE(SUM(NULLIF((raw_fields->>'Credit')::text,'')::numeric), 0)::text as total
+         FROM airtable_records
+         WHERE table_id = 'tblfNYrQKvtOwslbr'
+           AND (raw_fields->>'Trans #') LIKE 'CR1122%'`
+      ),
+      // Get authoritative rollup from Accounts table
+      query<{ acct_no: number; debits: number; credits: number; balance: number; title: string }>(
+        `SELECT
+          (raw_fields->>'No')::numeric as acct_no,
+          NULLIF(raw_fields->>'Debits', '')::numeric as debits,
+          NULLIF(raw_fields->>'Credits', '')::numeric as credits,
+          NULLIF(raw_fields->>'Balance', '')::numeric as balance,
+          raw_fields->>'Title' as title
+         FROM airtable_records
+         WHERE table_id = 'tblmt7JoM80l0vO5I'
+           AND (raw_fields->>'No')::text IN ('1152', '1122')
+         ORDER BY acct_no`
+      ).catch(() => [] as {acct_no: number; debits: number; credits: number; balance: number; title: string}[]),
+    ]);
+
+    const acct1122 = accts.find(a => Number(a.acct_no) === 1122);
+    const acct1152 = accts.find(a => Number(a.acct_no) === 1152);
+
+    return {
+      invoiced: {
+        count: parseInt(inv1152[0]?.count || '0'),
+        total: parseFloat(inv1152[0]?.total || '0'),
+        rollup: acct1152?.debits || null,
+      },
+      credits: {
+        count: parseInt(credits1152[0]?.count || '0'),
+        total: parseFloat(credits1152[0]?.total || '0'),
+        rollup: acct1152?.credits || null,
+      },
+      balance: {
+        computed: (parseFloat(inv1152[0]?.total || '0') - parseFloat(credits1152[0]?.total || '0')),
+        rollup: acct1152?.balance || null,
+      },
+      paid: {
+        count: parseInt(paid1122[0]?.count || '0'),
+        total: parseFloat(paid1122[0]?.total || '0'),
+        rollup: acct1122?.credits || null,
+      },
+      hasMirrorData: parseInt(inv1152[0]?.count || '0') > 0,
+    };
+  } catch {
+    return null;
+  }
+}

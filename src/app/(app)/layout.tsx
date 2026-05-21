@@ -1,31 +1,47 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard, FileText, ArrowLeftRight, Users,
   RefreshCw, Settings, ChevronLeft, ChevronRight,
-  Truck, Package, AlertTriangle, LogOut,
+  Truck, Package, AlertTriangle, LogOut, Database, Sun, Moon,
 } from 'lucide-react';
 
 const nav = [
-  { href: '/dashboard',    icon: LayoutDashboard, label: 'Dashboard',      group: 'main' },
-  { href: '/ar-report',    icon: FileText,         label: 'AR Report',      group: 'main' },
-  { href: '/transactions', icon: ArrowLeftRight,   label: 'Transactions',   group: 'main' },
-  { href: '/customers',    icon: Users,            label: 'Customers',      group: 'main' },
-  { href: '/loads',        icon: Truck,            label: 'Loads / Folios', group: 'ops'  },
-  { href: '/products',     icon: Package,          label: 'Products',       group: 'ops'  },
-  { href: '/anomalies',    icon: AlertTriangle,    label: 'Anomalies',      group: 'ops'  },
-  { href: '/sync',         icon: RefreshCw,        label: 'Sync Center',    group: 'admin'},
-  { href: '/admin',        icon: Settings,         label: 'Admin',          group: 'admin'},
+  { href: '/dashboard',      icon: LayoutDashboard, label: 'Dashboard',      group: 'main' },
+  { href: '/ar-report',      icon: FileText,         label: 'AR Report',      group: 'main' },
+  { href: '/transactions',   icon: ArrowLeftRight,   label: 'Transactions',   group: 'main' },
+  { href: '/customers',      icon: Users,            label: 'Customers',      group: 'main' },
+  { href: '/loads',          icon: Truck,            label: 'Loads / Folios', group: 'ops'  },
+  { href: '/data-explorer',  icon: Database,         label: 'Data Explorer',  group: 'ops'  },
+  { href: '/anomalies',      icon: AlertTriangle,    label: 'Anomalies',      group: 'ops'  },
+  { href: '/sync',           icon: RefreshCw,        label: 'Sync Center',    group: 'admin'},
+  { href: '/admin',          icon: Settings,         label: 'Admin',          group: 'admin'},
 ];
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
+  const [theme, setTheme] = useState<'dark' | 'light'>('dark');
+
+  useEffect(() => {
+    const saved = localStorage.getItem('melonops-theme') as 'dark' | 'light' | null;
+    const preferred = window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+    const initial = saved || preferred;
+    setTheme(initial);
+    document.documentElement.setAttribute('data-theme', initial);
+  }, []);
+
+  const toggleTheme = () => {
+    const next = theme === 'dark' ? 'light' : 'dark';
+    setTheme(next);
+    localStorage.setItem('melonops-theme', next);
+    document.documentElement.setAttribute('data-theme', next);
+  };
 
   return (
-    <div className="flex h-screen overflow-hidden bg-brand-dark">
+    <div className={`flex h-screen overflow-hidden ${theme === 'light' ? 'app-light' : ''} bg-brand-dark`} data-theme={theme}>
       {/* Sidebar */}
       <aside className={`
         flex flex-col border-r border-brand-green/20 bg-brand-forest shrink-0
@@ -55,7 +71,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 </div>
               )}
               {nav.filter(n => n.group === group).map(item => {
-                const active = pathname.startsWith(`/${item.href.slice(1)}`);
+                const active = pathname.startsWith(item.href);
                 return (
                   <Link
                     key={item.href}
@@ -79,12 +95,21 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               <div>v1.0.0</div>
             </div>
           )}
-          <button
-            onClick={() => setCollapsed(!collapsed)}
-            className="p-1.5 rounded text-brand-sage/50 hover:text-brand-cream hover:bg-brand-green/20 transition-colors"
-          >
-            {collapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
-          </button>
+          <div className={`flex ${collapsed ? 'flex-col' : 'flex-row'} gap-1`}>
+            <button
+              onClick={toggleTheme}
+              title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+              className="p-1.5 rounded text-brand-sage/50 hover:text-brand-cream hover:bg-brand-green/20 transition-colors"
+            >
+              {theme === 'dark' ? <Sun size={14} /> : <Moon size={14} />}
+            </button>
+            <button
+              onClick={() => setCollapsed(!collapsed)}
+              className="p-1.5 rounded text-brand-sage/50 hover:text-brand-cream hover:bg-brand-green/20 transition-colors"
+            >
+              {collapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
+            </button>
+          </div>
         </div>
       </aside>
 

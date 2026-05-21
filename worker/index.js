@@ -96,6 +96,11 @@ setInterval(runSyncJob, 15 * 60 * 1000);
 // Nightly reconciliation: every 6 hours
 setInterval(runReconcileJob, 6 * 60 * 60 * 1000);
 
+// Run mirror sync every 4 hours
+setInterval(runMirrorSyncJob, 4 * 60 * 60 * 1000);
+// Initial mirror sync after 2 min startup delay
+setTimeout(runMirrorSyncJob, 2 * 60 * 1000);
+
 // Initial run on startup
 setTimeout(async () => {
   await runSyncJob();
@@ -116,3 +121,32 @@ process.on('SIGTERM', () => {
 process.on('uncaughtException', (err) => {
   console.error('[Worker] Uncaught exception:', err);
 });
+
+// ============================================================
+// MIRROR SYNC JOB — syncs raw records from all Airtable tables
+// ============================================================
+async function runMirrorSyncJob() {
+  console.log('[Job] Running Airtable mirror sync...');
+  const start = Date.now();
+  try {
+    const response = await fetch(`${APP_URL.replace(/\/$/, '')}/api/airtable/sync/full`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-internal-token': INTERNAL_API_TOKEN,
+      },
+    });
+    const data = await response.json().catch(() => ({}));
+    const elapsed = ((Date.now() - start) / 1000).toFixed(1);
+    if (response.ok) {
+      const tableResults = Object.entries(data.tables || {})
+        .map(([t, r]) => `${t}:${r.synced}`)
+        .join(', ');
+      console.log(`[Job] Mirror sync done in ${elapsed}s — ${tableResults}`);
+    } else {
+      console.error(`[Job] Mirror sync failed: ${JSON.stringify(data)}`);
+    }
+  } catch (e) {
+    console.error('[Job] Mirror sync error:', e.message);
+  }
+}

@@ -112,3 +112,41 @@
   50% { opacity: 0.4; }
 }
 .sync-pulse { animation: pulse-green 2s ease-in-out infinite; }
+
+/* ─── Light mode ────────────────────────────────────────────── */
+[data-theme="light"],
+.app-light {
+  background-color: #f4f7f0 !important;
+  color: #1a2216 !important;
+}
+
+[data-theme="light"] .bg-brand-dark { background-color: #f4f7f0 !important; }
+[data-theme="light"] .bg-brand-forest { background-color: #e8f0e4 !important; }
+[data-theme="light"] .border-brand-green\/20 { border-color: rgba(74,122,53,0.25) !important; }
+[data-theme="light"] .text-brand-cream { color: #1a2216 !important; }
+[data-theme="light"] .text-brand-sage\/60 { color: rgba(45,74,34,0.7) !important; }
+[data-theme="light"] .text-brand-sage\/40 { color: rgba(45,74,34,0.5) !important; }
+[data-theme="light"] .text-brand-warm\/70 { color: rgba(26,34,22,0.7) !important; }
+[data-theme="light"] .text-brand-warm\/40 { color: rgba(26,34,22,0.4) !important; }
+[data-theme="light"] .card { background-color: #fff !important; border-color: rgba(74,122,53,0.2) !important; }
+[data-theme="light"] .input {
+  background-color: #fff !important;
+  border-color: rgba(74,122,53,0.35) !important;
+  color: #1a2216 !important;
+}
+[data-theme="light"] .input::placeholder { color: rgba(74,122,53,0.5) !important; }
+[data-theme="light"] .btn-secondary {
+  background-color: #fff !important;
+  border-color: rgba(74,122,53,0.35) !important;
+  color: #1a2216 !important;
+}
+[data-theme="light"] .sidebar-link { color: rgba(26,34,22,0.7) !important; }
+[data-theme="light"] .sidebar-link:hover,
+[data-theme="light"] .sidebar-link.active { color: #1a2216 !important; background-color: rgba(74,122,53,0.15) !important; }
+[data-theme="light"] table { color: #1a2216 !important; }
+[data-theme="light"] thead { background-color: #e8f0e4 !important; }
+[data-theme="light"] th { color: rgba(26,34,22,0.6) !important; border-color: rgba(74,122,53,0.2) !important; }
+[data-theme="light"] td { color: rgba(26,34,22,0.85) !important; }
+[data-theme="light"] tr:nth-child(even) { background-color: rgba(74,122,53,0.05) !important; }
+[data-theme="light"] ::-webkit-scrollbar-track { background: #e8f0e4; }
+[data-theme="light"] ::-webkit-scrollbar-thumb { background: #7aad5e; }

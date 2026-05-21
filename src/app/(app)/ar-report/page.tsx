@@ -1,5 +1,5 @@
 export const dynamic = "force-dynamic";
-import { buildARReport, exportARToExcel } from '@/lib/ar-engine';
+import { buildARReport, exportARToExcel, getMirrorARSummary } from '@/lib/ar-engine';
 import { Download, Filter, RefreshCw, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
 
@@ -27,16 +27,23 @@ export default async function ARReportPage({
   let report;
   let error: string | null = null;
 
-  try {
-    report = await buildARReport({
+  const [reportResult, mirrorAR] = await Promise.allSettled([
+    buildARReport({
       asOfDate: sp.date ? new Date(sp.date) : new Date(),
       customerCodes: customerFilter,
       includeZeroBalance,
-    });
-  } catch (e) {
-    error = (e as Error).message;
+    }),
+    getMirrorARSummary(),
+  ]);
+
+  if (reportResult.status === 'fulfilled') {
+    report = reportResult.value;
+  } else {
+    error = reportResult.reason?.message || 'Report failed';
     report = null;
   }
+
+  const mirrorData = mirrorAR.status === 'fulfilled' ? mirrorAR.value : null;
 
   return (
     <div className="p-6 space-y-4">
@@ -62,6 +69,62 @@ export default async function ARReportPage({
           </Link>
         </div>
       </div>
+
+      {/* Airtable Mirror AR Data */}
+      {mirrorData && (
+        <div className="card p-4">
+          <h2 className="font-semibold text-brand-cream text-sm mb-3">
+            📊 Airtable Source of Truth — Account Rollups
+          </h2>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="stat-card">
+              <div className="label">1152 Invoiced (DR)</div>
+              <div className="text-xl font-bold text-brand-cream font-mono">
+                {mirrorData.invoiced.rollup
+                  ? new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(mirrorData.invoiced.rollup)
+                  : new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(mirrorData.invoiced.total)
+                }
+              </div>
+              <div className="text-xs text-brand-sage/50">{mirrorData.invoiced.count} transactions</div>
+            </div>
+            <div className="stat-card">
+              <div className="label">1152 Credits</div>
+              <div className="text-xl font-bold text-brand-cream font-mono">
+                {mirrorData.credits.rollup
+                  ? new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(mirrorData.credits.rollup)
+                  : new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(mirrorData.credits.total)
+                }
+              </div>
+              <div className="text-xs text-brand-sage/50">ACCTG – BAL AR INV 1152</div>
+            </div>
+            <div className="stat-card">
+              <div className="label">Net AR Balance</div>
+              <div className="text-xl font-bold text-brand-gold font-mono">
+                {mirrorData.balance.rollup !== null
+                  ? new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(mirrorData.balance.rollup)
+                  : new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(mirrorData.balance.computed)
+                }
+              </div>
+              <div className="text-xs text-brand-sage/50">1152 Debits − Credits</div>
+            </div>
+            <div className="stat-card">
+              <div className="label">1122 Payments Rcvd</div>
+              <div className="text-xl font-bold text-brand-sage font-mono">
+                {mirrorData.paid.rollup
+                  ? new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(mirrorData.paid.rollup)
+                  : new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(mirrorData.paid.total)
+                }
+              </div>
+              <div className="text-xs text-brand-sage/50">ACCTG – BAL AR INV 1122</div>
+            </div>
+          </div>
+          {!mirrorData.hasMirrorData && (
+            <p className="text-xs text-brand-gold mt-3">
+              ⚠ No transaction mirror data yet. Go to Sync Center → Sync All Tables to pull Airtable data.
+            </p>
+          )}
+        </div>
+      )}
 
       {/* Filters */}
       <div className="card p-3 flex items-center gap-4 flex-wrap">

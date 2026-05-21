@@ -647,3 +647,7 @@ export async function reconcileAR(): Promise<{
 
   return { pgInvoiced, pgPaid, pgBalance, anomalies };
 }
+
+// Export retry for use by airtable-mirror
+
+export { withRetry as withRetryPublic };
