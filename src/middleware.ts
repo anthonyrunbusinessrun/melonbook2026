@@ -36,8 +36,14 @@ export default withAuth(
           return true;
         }
 
-        // Allow public paths
-        if (path.startsWith('/login') || path.startsWith('/api/health') || path.startsWith('/api/webhooks')) {
+        // Allow public paths. Bootstrap only starts the initial Airtable mirror
+        // when no mirrored records exist yet; it does not expose record data.
+        if (
+          path.startsWith('/login') ||
+          path.startsWith('/api/health') ||
+          path.startsWith('/api/webhooks') ||
+          path.startsWith('/api/airtable/bootstrap')
+        ) {
           return true;
         }
         // All other paths require auth
