@@ -15,6 +15,7 @@
 
 import { query } from '@/db';
 import ExcelJS from 'exceljs';
+import { TRANSACTIONS_TABLE_ID } from '@/lib/airtable-mirror';
 
 export interface ARRow {
   customerId: string;
@@ -573,5 +574,114 @@ export async function getARSummary(): Promise<{
     customerCount: Number(row.customer_count),
     openInvoiceCount: Number(row.open_invoice_count),
     overdueCount: Number(row.overdue_count),
+  };
+}
+
+// ============================================================
+// RAW AIRTABLE MIRROR SUMMARY
+// ============================================================
+export async function getMirrorARSummary(): Promise<{
+  transactionRecordCount: number;
+  ar1152RecordCount: number;
+  paid1122RecordCount: number;
+  invoicedFromRecords: number;
+  paidFromRecords: number;
+  invoicedFromViews: number;
+  paidFromViews: number;
+  balanceFromViews: number;
+  viewStats: Array<{
+    viewName: string;
+    recordCount: number;
+    debitTotal: number;
+    creditTotal: number;
+    lastSyncedAt: string;
+    syncError: string | null;
+  }>;
+}> {
+  const [recordTotals] = await query<{
+    transaction_record_count: string;
+    ar1152_record_count: string;
+    paid1122_record_count: string;
+    invoiced_from_records: string;
+    paid_from_records: string;
+  }>(`
+    WITH tx AS (
+      SELECT
+        raw_fields,
+        COALESCE(raw_fields->>'Trans #', raw_fields->>'Transaction #', raw_fields->>'Name', '') as trans_no,
+        COALESCE(raw_fields->>'Account No', raw_fields->>'Account', '') as account_no,
+        CASE
+          WHEN COALESCE(raw_fields->>'Debit', '') ~ '^-?[0-9,]+(\\.[0-9]+)?$'
+            THEN REPLACE(raw_fields->>'Debit', ',', '')::numeric
+          ELSE 0
+        END as debit,
+        CASE
+          WHEN COALESCE(raw_fields->>'Credit', '') ~ '^-?[0-9,]+(\\.[0-9]+)?$'
+            THEN REPLACE(raw_fields->>'Credit', ',', '')::numeric
+          ELSE 0
+        END as credit
+      FROM airtable_records
+      WHERE table_id = $1
+    )
+    SELECT
+      COUNT(*)::text as transaction_record_count,
+      COUNT(*) FILTER (
+        WHERE trans_no ILIKE '%1152%' OR account_no ILIKE '%1152%'
+      )::text as ar1152_record_count,
+      COUNT(*) FILTER (
+        WHERE trans_no ILIKE '%1122%' OR account_no ILIKE '%1122%'
+      )::text as paid1122_record_count,
+      COALESCE(SUM(debit) FILTER (
+        WHERE trans_no ILIKE '%1152%' OR account_no ILIKE '%1152%'
+      ), 0)::text as invoiced_from_records,
+      COALESCE(SUM(credit) FILTER (
+        WHERE trans_no ILIKE '%1122%' OR account_no ILIKE '%1122%'
+      ), 0)::text as paid_from_records
+    FROM tx
+  `, [TRANSACTIONS_TABLE_ID]);
+
+  const viewRows = await query<{
+    view_name: string;
+    record_count: number;
+    debit_total: string;
+    credit_total: string;
+    last_synced_at: string;
+    sync_error: string | null;
+  }>(`
+    SELECT view_name, record_count, debit_total::text, credit_total::text, last_synced_at, sync_error
+    FROM airtable_view_stats
+    WHERE table_id = $1
+      AND (
+        view_name ILIKE '%1152%'
+        OR view_name ILIKE '%1122%'
+        OR view_name ILIKE 'ACCTG%'
+      )
+    ORDER BY view_name
+  `, [TRANSACTIONS_TABLE_ID]);
+
+  const viewStats = viewRows.map(row => ({
+    viewName: row.view_name,
+    recordCount: Number(row.record_count || 0),
+    debitTotal: Number(row.debit_total || 0),
+    creditTotal: Number(row.credit_total || 0),
+    lastSyncedAt: row.last_synced_at,
+    syncError: row.sync_error,
+  }));
+
+  const invoiceView = viewStats.find(view => view.viewName.includes('1152'));
+  const paidView = viewStats.find(view => view.viewName.includes('1122'));
+  const invoicedFromViews = invoiceView ? invoiceView.debitTotal || invoiceView.creditTotal : 0;
+  const paidFromViews = paidView ? paidView.creditTotal || paidView.debitTotal : 0;
+
+  return {
+    transactionRecordCount: Number(recordTotals?.transaction_record_count || 0),
+    ar1152RecordCount: Number(recordTotals?.ar1152_record_count || 0),
+    paid1122RecordCount: Number(recordTotals?.paid1122_record_count || 0),
+    invoicedFromRecords: Number(recordTotals?.invoiced_from_records || 0),
+    paidFromRecords: Number(recordTotals?.paid_from_records || 0),
+    invoicedFromViews,
+    paidFromViews,
+    balanceFromViews: invoicedFromViews - paidFromViews,
+    viewStats,
   };
 }

@@ -13,7 +13,7 @@ export default withAuth(
 
     // Accounting-only write operations (GET is fine for all authenticated)
     // Protect API sync routes from readonly users
-    if (path.startsWith('/api/sync') && req.method !== 'GET') {
+    if ((path.startsWith('/api/sync') || path.startsWith('/api/airtable')) && req.method !== 'GET') {
       if (token?.role === 'readonly') {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
       }
@@ -29,7 +29,7 @@ export default withAuth(
         const expectedInternalToken = process.env.INTERNAL_API_TOKEN;
 
         if (
-          path.startsWith('/api/sync') &&
+          (path.startsWith('/api/sync') || path.startsWith('/api/airtable')) &&
           expectedInternalToken &&
           internalToken === expectedInternalToken
         ) {

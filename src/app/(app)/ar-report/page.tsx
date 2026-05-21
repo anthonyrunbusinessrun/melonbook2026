@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic";
 import { buildARReport, exportARToExcel } from '@/lib/ar-engine';
+import { getMirrorARSummary } from '@/lib/ar-engine';
 import { Download, Filter, RefreshCw, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
 
@@ -25,7 +26,9 @@ export default async function ARReportPage({
   const customerFilter = sp.customer ? sp.customer.split(',').map(s => s.trim()) : undefined;
 
   let report;
+  let mirrorSummary: Awaited<ReturnType<typeof getMirrorARSummary>> | null = null;
   let error: string | null = null;
+  let mirrorError: string | null = null;
 
   try {
     report = await buildARReport({
@@ -36,6 +39,12 @@ export default async function ARReportPage({
   } catch (e) {
     error = (e as Error).message;
     report = null;
+  }
+
+  try {
+    mirrorSummary = await getMirrorARSummary();
+  } catch (e) {
+    mirrorError = (e as Error).message;
   }
 
   return (
@@ -61,6 +70,73 @@ export default async function ARReportPage({
             Refresh
           </Link>
         </div>
+      </div>
+
+      {/* Airtable accounting validation */}
+      <div className="card p-4">
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <div>
+            <h2 className="text-sm font-semibold text-brand-cream">Airtable Accounting View Validation</h2>
+            <p className="text-xs text-brand-sage/55 mt-1">
+              Mirrors the Transaction tab views the accounting team uses: ACCTG - BAL AR INV 1152 and ACCTG - BAL AR INV 1122.
+            </p>
+          </div>
+          <Link href="/data-explorer?table=tblfNYrQKvtOwslbr" className="btn-secondary text-xs py-1.5">
+            Open Transactions Mirror
+          </Link>
+        </div>
+
+        {mirrorError && (
+          <div className="mt-3 text-xs text-brand-gold">
+            Mirror totals are waiting on the Airtable mirror migration/sync: {mirrorError}
+          </div>
+        )}
+
+        {mirrorSummary && (
+          <>
+            <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mt-4">
+              {[
+                { label: 'Synced Transactions', value: mirrorSummary.transactionRecordCount.toLocaleString(), tone: 'text-brand-cream' },
+                { label: '1152 View Invoiced', value: new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(mirrorSummary.invoicedFromViews), tone: 'text-brand-gold' },
+                { label: '1122 View Paid', value: new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(mirrorSummary.paidFromViews), tone: 'text-brand-sage' },
+                { label: 'View Balance', value: new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(mirrorSummary.balanceFromViews), tone: 'text-brand-cream' },
+                { label: '1152 / 1122 Records', value: `${mirrorSummary.ar1152RecordCount.toLocaleString()} / ${mirrorSummary.paid1122RecordCount.toLocaleString()}`, tone: 'text-brand-cream' },
+              ].map(item => (
+                <div key={item.label} className="stat-card">
+                  <span className="label">{item.label}</span>
+                  <span className={`font-mono text-sm font-semibold ${item.tone}`}>{item.value}</span>
+                </div>
+              ))}
+            </div>
+
+            {mirrorSummary.viewStats.length > 0 && (
+              <div className="mt-4 overflow-x-auto">
+                <table className="ops-table">
+                  <thead>
+                    <tr>
+                      <th>Accounting View</th>
+                      <th className="text-right">Records</th>
+                      <th className="text-right">Debit Total</th>
+                      <th className="text-right">Credit Total</th>
+                      <th>Last Synced</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {mirrorSummary.viewStats.map(view => (
+                      <tr key={view.viewName}>
+                        <td className="text-brand-cream">{view.viewName}</td>
+                        <td className="text-right font-mono">{view.recordCount.toLocaleString()}</td>
+                        <td className="text-right font-mono">{new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(view.debitTotal)}</td>
+                        <td className="text-right font-mono">{new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(view.creditTotal)}</td>
+                        <td className="text-brand-warm/50">{view.lastSyncedAt ? new Date(view.lastSyncedAt).toLocaleString() : 'Never'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </>
+        )}
       </div>
 
       {/* Filters */}

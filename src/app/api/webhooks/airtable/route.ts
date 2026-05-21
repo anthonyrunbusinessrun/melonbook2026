@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/db';
 import { syncContacts, syncTransactions, syncVouchers } from '@/lib/sync';
+import { syncAirtableSchema, syncAirtableTableRecords } from '@/lib/airtable-mirror';
 import crypto from 'crypto';
 
 // Airtable webhook secret for HMAC verification
@@ -40,6 +41,11 @@ export async function POST(request: NextRequest) {
   const tableId = payload.tableId as string;
 
   try {
+    if (tableId) {
+      await syncAirtableSchema();
+      await syncAirtableTableRecords(tableId);
+    }
+
     if (tableId === 'tblqy4XXa2ap3g66T') {
       await syncContacts();
     } else if (tableId === 'tblfNYrQKvtOwslbr') {

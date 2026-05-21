@@ -1,11 +1,11 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard, FileText, ArrowLeftRight, Users,
   RefreshCw, Settings, ChevronLeft, ChevronRight,
-  Truck, Package, AlertTriangle, LogOut,
+  Truck, Package, AlertTriangle, Database, Moon, Sun,
 } from 'lucide-react';
 
 const nav = [
@@ -13,6 +13,7 @@ const nav = [
   { href: '/ar-report',    icon: FileText,         label: 'AR Report',      group: 'main' },
   { href: '/transactions', icon: ArrowLeftRight,   label: 'Transactions',   group: 'main' },
   { href: '/customers',    icon: Users,            label: 'Customers',      group: 'main' },
+  { href: '/data-explorer', icon: Database,        label: 'Data Explorer',  group: 'main' },
   { href: '/loads',        icon: Truck,            label: 'Loads / Folios', group: 'ops'  },
   { href: '/products',     icon: Package,          label: 'Products',       group: 'ops'  },
   { href: '/anomalies',    icon: AlertTriangle,    label: 'Anomalies',      group: 'ops'  },
@@ -23,6 +24,21 @@ const nav = [
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
+  const [theme, setTheme] = useState<'dark' | 'light'>('dark');
+
+  useEffect(() => {
+    const stored = window.localStorage.getItem('melonops-theme') as 'dark' | 'light' | null;
+    const initial = stored || (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+    setTheme(initial);
+    document.documentElement.classList.toggle('light', initial === 'light');
+  }, []);
+
+  function toggleTheme() {
+    const next = theme === 'dark' ? 'light' : 'dark';
+    setTheme(next);
+    window.localStorage.setItem('melonops-theme', next);
+    document.documentElement.classList.toggle('light', next === 'light');
+  }
 
   return (
     <div className="flex h-screen overflow-hidden bg-brand-dark">
@@ -79,6 +95,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               <div>v1.0.0</div>
             </div>
           )}
+          <button
+            onClick={toggleTheme}
+            className="p-1.5 rounded text-brand-sage/60 hover:text-brand-cream hover:bg-brand-green/20 transition-colors"
+            title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+          >
+            {theme === 'dark' ? <Sun size={14} /> : <Moon size={14} />}
+          </button>
           <button
             onClick={() => setCollapsed(!collapsed)}
             className="p-1.5 rounded text-brand-sage/50 hover:text-brand-cream hover:bg-brand-green/20 transition-colors"

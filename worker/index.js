@@ -21,7 +21,11 @@ if (!INTERNAL_API_TOKEN) {
 }
 
 async function callSyncEndpoint(type) {
-  const response = await fetch(`${APP_URL.replace(/\/$/, '')}/api/sync/${type}`, {
+  return callInternalEndpoint(`/api/sync/${type}`, type);
+}
+
+async function callInternalEndpoint(path, label) {
+  const response = await fetch(`${APP_URL.replace(/\/$/, '')}${path}`, {
     method: 'POST',
     headers: {
       'content-type': 'application/json',
@@ -38,7 +42,7 @@ async function callSyncEndpoint(type) {
   }
 
   if (!response.ok) {
-    throw new Error(`${type} failed with ${response.status}: ${JSON.stringify(payload)}`);
+    throw new Error(`${label} failed with ${response.status}: ${JSON.stringify(payload)}`);
   }
 
   return payload.result ?? payload;
@@ -84,6 +88,19 @@ async function runReconcileJob() {
   }
 }
 
+async function runAirtableMirrorJob() {
+  console.log('[Job] Starting full Airtable mirror sync...');
+  const start = Date.now();
+  try {
+    const results = await callInternalEndpoint('/api/airtable/sync/full', 'airtable mirror');
+    const elapsed = ((Date.now() - start) / 1000).toFixed(1);
+    const tableCount = Array.isArray(results.tables) ? results.tables.length : 0;
+    console.log(`[Job] Airtable mirror complete in ${elapsed}s across ${tableCount} tables`);
+  } catch (e) {
+    console.error('[Job] Airtable mirror failed:', e.message);
+  }
+}
+
 // ============================================================
 // SCHEDULE
 // ============================================================
@@ -96,8 +113,12 @@ setInterval(runSyncJob, 15 * 60 * 1000);
 // Nightly reconciliation: every 6 hours
 setInterval(runReconcileJob, 6 * 60 * 60 * 1000);
 
+// Raw Airtable mirror: every 4 hours
+setInterval(runAirtableMirrorJob, 4 * 60 * 60 * 1000);
+
 // Initial run on startup
 setTimeout(async () => {
+  await runAirtableMirrorJob();
   await runSyncJob();
   await runReconcileJob();
 }, 5000);
@@ -105,6 +126,7 @@ setTimeout(async () => {
 console.log('[Worker] Scheduled jobs:');
 console.log('  - Outbox processor: every 30 seconds');
 console.log('  - Full sync: every 15 minutes');
+console.log('  - Full Airtable mirror: every 4 hours');
 console.log('  - AR reconciliation: every 6 hours');
 
 // Keep process alive

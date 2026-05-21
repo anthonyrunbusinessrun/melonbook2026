@@ -1,5 +1,5 @@
 export const dynamic = "force-dynamic";
-import { getARSummary } from '@/lib/ar-engine';
+import { getARSummary, getMirrorARSummary } from '@/lib/ar-engine';
 import { query } from '@/db';
 import {
   DollarSign, TrendingUp, AlertTriangle, RefreshCw,
@@ -18,8 +18,9 @@ function fmtDate(d: string | Date | null) {
 
 export default async function DashboardPage() {
   // Parallel data fetching
-  const [arSummary, syncRuns, anomalies, recentVouchers] = await Promise.allSettled([
+  const [arSummary, mirrorSummary, syncRuns, anomalies, recentVouchers] = await Promise.allSettled([
     getARSummary(),
+    getMirrorARSummary(),
     query<{ direction: string; started_at: string; completed_at: string; records_processed: number; error_message: string }>(
       `SELECT direction, started_at, completed_at, records_processed, error_message
        FROM sync_runs ORDER BY started_at DESC LIMIT 5`
@@ -43,6 +44,7 @@ export default async function DashboardPage() {
     customerCount: 0, openInvoiceCount: 0, overdueCount: 0,
   };
 
+  const mirror = mirrorSummary.status === 'fulfilled' ? mirrorSummary.value : null;
   const runs = syncRuns.status === 'fulfilled' ? syncRuns.value : [];
   const flags = anomalies.status === 'fulfilled' ? anomalies.value : [];
   const vouchers = recentVouchers.status === 'fulfilled' ? recentVouchers.value : [];
@@ -78,6 +80,22 @@ export default async function DashboardPage() {
           </Link>
         </div>
       </div>
+
+      {mirror && mirror.transactionRecordCount > 0 && (
+        <div className="card p-4 flex items-center justify-between gap-4 flex-wrap">
+          <div>
+            <div className="text-sm font-semibold text-brand-cream">Airtable Mirror Is Feeding This App</div>
+            <div className="text-xs text-brand-sage/55 mt-1">
+              {mirror.transactionRecordCount.toLocaleString()} Transaction records synced from Melonbook 2026. Accounting view totals are available in AR Report and Data Explorer.
+            </div>
+          </div>
+          <div className="flex items-center gap-4 text-xs font-mono">
+            <span className="text-brand-warm/60">1152 invoiced: <span className="text-brand-gold">{fmt(mirror.invoicedFromViews || mirror.invoicedFromRecords)}</span></span>
+            <span className="text-brand-warm/60">1122 paid: <span className="text-brand-sage">{fmt(mirror.paidFromViews || mirror.paidFromRecords)}</span></span>
+            <Link href="/data-explorer?table=tblfNYrQKvtOwslbr" className="btn-secondary text-xs py-1.5">Open Transactions</Link>
+          </div>
+        </div>
+      )}
 
       {/* AR Stats */}
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">

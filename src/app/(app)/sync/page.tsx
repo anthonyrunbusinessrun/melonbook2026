@@ -1,6 +1,7 @@
 'use client';
-import { useState } from 'react';
-import { RefreshCw, CheckCircle, XCircle, Clock, Play, AlertTriangle, Database, Zap } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { RefreshCw, CheckCircle, XCircle, Play, Database, Zap, Table2 } from 'lucide-react';
+import Link from 'next/link';
 
 type SyncRun = {
   id: string; direction: string; table_name: string;
@@ -17,10 +18,65 @@ type ConflictItem = {
   id: string; table_name: string; winner: string; resolved_at: string;
 };
 
+type MirrorTable = {
+  table_id: string;
+  table_name: string;
+  record_count: number;
+  status: string;
+  records_synced_at: string | null;
+  schema_synced_at: string | null;
+  sync_error: string | null;
+};
+
+type MirrorViewStat = {
+  view_id: string;
+  view_name: string;
+  record_count: number;
+  debit_total: number;
+  credit_total: number;
+  last_synced_at: string;
+  sync_error: string | null;
+};
+
+type MirrorStatus = {
+  tables: MirrorTable[];
+  viewStats: MirrorViewStat[];
+};
+
+function fmtDate(value: string | null) {
+  if (!value) return 'Never';
+  return new Date(value).toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
+
 export default function SyncCenterPage() {
   const [running, setRunning] = useState<string | null>(null);
   const [result, setResult] = useState<Record<string, unknown> | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [mirror, setMirror] = useState<MirrorStatus | null>(null);
+  const [loadingMirror, setLoadingMirror] = useState(true);
+
+  async function loadMirrorStatus() {
+    setLoadingMirror(true);
+    try {
+      const res = await fetch('/api/airtable/status', { cache: 'no-store' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Could not load Airtable status');
+      setMirror({ tables: data.tables || [], viewStats: data.viewStats || [] });
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setLoadingMirror(false);
+    }
+  }
+
+  useEffect(() => {
+    loadMirrorStatus();
+  }, []);
 
   async function runSync(type: string) {
     setRunning(type);
@@ -38,6 +94,25 @@ export default function SyncCenterPage() {
     }
   }
 
+  async function runMirrorSync(path: string, label: string) {
+    setRunning(label);
+    setResult(null);
+    setError(null);
+    try {
+      const res = await fetch(path, { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Airtable mirror sync failed');
+      setResult(data);
+      await loadMirrorStatus();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setRunning(null);
+    }
+  }
+
+  const totalMirrorRecords = mirror?.tables.reduce((sum, table) => sum + Number(table.record_count || 0), 0) || 0;
+
   return (
     <div className="p-6 space-y-6">
       <div>
@@ -45,6 +120,133 @@ export default function SyncCenterPage() {
         <p className="text-brand-sage/60 text-sm">
           Airtable ↔ PostgreSQL bidirectional sync — Melonbook™ 2026 (appmnU55C5f7A50U4)
         </p>
+      </div>
+
+      {/* Airtable mirror controls */}
+      <div className="card p-4 space-y-4">
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <div>
+            <h2 className="text-sm font-semibold text-brand-cream">Full Airtable Mirror</h2>
+            <p className="text-xs text-brand-sage/55 mt-1">
+              Pulls every Airtable table, field, view, and record into Railway Postgres so the app always has a complete copy of Melonbook 2026.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Link href="/data-explorer" className="btn-secondary flex items-center gap-1.5 text-xs py-1.5">
+              <Table2 size={13} />
+              Data Explorer
+            </Link>
+            <button
+              onClick={() => runMirrorSync('/api/airtable/sync/schema', 'airtable-schema')}
+              disabled={running !== null}
+              className="btn-secondary flex items-center gap-1.5 text-xs py-1.5"
+            >
+              <RefreshCw size={13} className={running === 'airtable-schema' ? 'animate-spin' : ''} />
+              Sync Schema
+            </button>
+            <button
+              onClick={() => runMirrorSync('/api/airtable/sync/full', 'airtable-full')}
+              disabled={running !== null}
+              className="btn-gold flex items-center gap-1.5 text-xs py-1.5"
+            >
+              <Database size={13} />
+              Full Airtable Mirror Sync
+            </button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          {[
+            { label: 'Mirrored Tables', value: mirror?.tables.length || 0 },
+            { label: 'Mirrored Records', value: totalMirrorRecords.toLocaleString() },
+            { label: 'Accounting Views', value: mirror?.viewStats.length || 0 },
+            { label: 'Tables With Errors', value: mirror?.tables.filter(table => table.sync_error).length || 0 },
+          ].map(item => (
+            <div key={item.label} className="stat-card">
+              <span className="label">{item.label}</span>
+              <span className="text-base font-semibold text-brand-cream font-mono">{item.value}</span>
+            </div>
+          ))}
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="ops-table">
+            <thead>
+              <tr>
+                <th>Table</th>
+                <th className="text-right">Records</th>
+                <th>Status</th>
+                <th>Schema Synced</th>
+                <th>Records Synced</th>
+                <th className="text-right">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loadingMirror && (
+                <tr><td colSpan={6} className="text-center text-brand-sage/50 py-6">Loading mirror status...</td></tr>
+              )}
+              {!loadingMirror && mirror?.tables.length === 0 && (
+                <tr><td colSpan={6} className="text-center text-brand-sage/50 py-6">No Airtable schema mirrored yet. Run Sync Schema or Full Airtable Mirror Sync.</td></tr>
+              )}
+              {mirror?.tables.map(table => (
+                <tr key={table.table_id}>
+                  <td>
+                    <Link href={`/data-explorer?table=${table.table_id}`} className="text-brand-cream hover:text-brand-sage">
+                      {table.table_name}
+                    </Link>
+                    <div className="font-mono text-[10px] text-brand-warm/40">{table.table_id}</div>
+                    {table.sync_error && <div className="text-[10px] text-brand-brightred mt-1">{table.sync_error}</div>}
+                  </td>
+                  <td className="text-right font-mono">{Number(table.record_count || 0).toLocaleString()}</td>
+                  <td>
+                    <span className={table.status === 'ok' ? 'badge-green' : table.status === 'running' ? 'badge-gold' : 'badge-gray'}>
+                      {table.status}
+                    </span>
+                  </td>
+                  <td className="text-brand-warm/50">{fmtDate(table.schema_synced_at)}</td>
+                  <td className="text-brand-warm/50">{fmtDate(table.records_synced_at)}</td>
+                  <td className="text-right">
+                    <button
+                      onClick={() => runMirrorSync(`/api/airtable/sync/table/${table.table_id}`, table.table_id)}
+                      disabled={running !== null}
+                      className="btn-secondary text-xs py-1.5"
+                    >
+                      {running === table.table_id ? 'Syncing...' : 'Sync Table'}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {mirror?.viewStats && mirror.viewStats.length > 0 && (
+          <div className="overflow-x-auto">
+            <div className="text-xs font-semibold text-brand-sage uppercase tracking-wider mb-2">Accounting View Totals</div>
+            <table className="ops-table">
+              <thead>
+                <tr>
+                  <th>View</th>
+                  <th className="text-right">Records</th>
+                  <th className="text-right">Debit</th>
+                  <th className="text-right">Credit</th>
+                  <th>Last Synced</th>
+                </tr>
+              </thead>
+              <tbody>
+                {mirror.viewStats.map(view => (
+                  <tr key={view.view_id}>
+                    <td className="text-brand-cream">{view.view_name}</td>
+                    <td className="text-right font-mono">{Number(view.record_count || 0).toLocaleString()}</td>
+                    <td className="text-right font-mono">{new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(Number(view.debit_total || 0))}</td>
+                    <td className="text-right font-mono">{new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(Number(view.credit_total || 0))}</td>
+                    <td className="text-brand-warm/50">{fmtDate(view.last_synced_at)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       {/* Sync actions */}
