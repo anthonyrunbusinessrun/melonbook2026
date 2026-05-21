@@ -3,13 +3,32 @@ import { queryOne } from '@/db';
 
 export async function GET() {
   try {
-    const [dbRow] = await Promise.all([
+    const [dbRow, mirrorRow] = await Promise.all([
       queryOne<{ now: string }>('SELECT NOW() as now'),
+      queryOne<{
+        table_count: string;
+        record_count: string;
+        last_synced_at: string | null;
+        error_count: string;
+      }>(`
+        SELECT
+          COUNT(*)::text as table_count,
+          COALESCE(SUM(record_count), 0)::text as record_count,
+          MAX(records_synced_at)::text as last_synced_at,
+          COUNT(*) FILTER (WHERE sync_error IS NOT NULL)::text as error_count
+        FROM airtable_sync_status
+      `).catch(() => null),
     ]);
     return NextResponse.json({
       status: 'ok',
       version: '1.0.0',
       db: dbRow ? 'connected' : 'error',
+      airtableMirror: mirrorRow ? {
+        tables: Number(mirrorRow.table_count || 0),
+        records: Number(mirrorRow.record_count || 0),
+        lastSyncedAt: mirrorRow.last_synced_at,
+        errors: Number(mirrorRow.error_count || 0),
+      } : null,
       timestamp: new Date().toISOString(),
       app: 'MelonOps — Raymon J Land',
       commit: process.env.RAILWAY_GIT_COMMIT_SHA || process.env.VERCEL_GIT_COMMIT_SHA || 'local',
