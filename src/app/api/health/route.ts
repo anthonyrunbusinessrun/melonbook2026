@@ -12,11 +12,10 @@ export async function GET() {
         error_count: string;
       }>(`
         SELECT
-          COUNT(*)::text as table_count,
-          COALESCE(SUM(record_count), 0)::text as record_count,
-          MAX(records_synced_at)::text as last_synced_at,
-          COUNT(*) FILTER (WHERE sync_error IS NOT NULL)::text as error_count
-        FROM airtable_sync_status
+          (SELECT COUNT(*)::text FROM airtable_tables) as table_count,
+          (SELECT COUNT(*)::text FROM airtable_records) as record_count,
+          (SELECT MAX(last_synced_at)::text FROM airtable_records) as last_synced_at,
+          (SELECT COUNT(*)::text FROM airtable_sync_status WHERE sync_error IS NOT NULL) as error_count
       `).catch(() => null),
     ]);
     return NextResponse.json({
