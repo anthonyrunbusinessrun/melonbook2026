@@ -1,6 +1,6 @@
 /**
  * Airtable ↔ Postgres Bidirectional Sync Engine
- * Melonbook™ 2026 base: appmnU55C5f7A50U4
+ * MelonBook™ 2026 base: appmnU55C5f7A50U4
  */
 
 import { query, queryOne, transaction } from '@/db';

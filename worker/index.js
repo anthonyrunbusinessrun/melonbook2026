@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 /**
- * MelonOps Background Worker
+ * MelonBook Background Worker
  * Runs scheduled jobs: sync, reconciliation, anomaly detection
  */
 
-console.log('[Worker] MelonOps Background Worker starting...');
+console.log('[Worker] MelonBook Background Worker starting...');
 console.log(`[Worker] Environment: ${process.env.NODE_ENV || 'development'}`);
 
 const APP_URL = process.env.INTERNAL_API_BASE_URL || process.env.NEXTAUTH_URL;

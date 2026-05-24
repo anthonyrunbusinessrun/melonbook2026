@@ -43,6 +43,15 @@ if (process.env.INITIAL_ACCOUNTING_PASSWORD) {
   });
 }
 
+if (process.env.INITIAL_USER_PASSWORD) {
+  USERS.push({
+    email: process.env.INITIAL_USER_EMAIL || 'user@raymonjland.com',
+    name: process.env.INITIAL_USER_NAME || 'Staff User',
+    role: 'user',
+    password: requirePassword('INITIAL_USER_PASSWORD'),
+  });
+}
+
 if (process.env.INITIAL_SALES_PASSWORD) {
   USERS.push({
     email: process.env.INITIAL_SALES_EMAIL || 'sales@raymonjland.com',

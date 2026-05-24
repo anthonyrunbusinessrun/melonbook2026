@@ -74,7 +74,7 @@ export default async function TransactionsPage({
         <div>
           <h1 className="font-display text-3xl font-semibold text-brand-cream">Transactions</h1>
           <p className="text-brand-sage/60 text-sm">
-            {total.toLocaleString()} ledger entries · Double-entry from Melonbook™ 2026
+            {total.toLocaleString()} ledger entries · Double-entry from MelonBook™ 2026
           </p>
         </div>
       </div>

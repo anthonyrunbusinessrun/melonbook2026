@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic';
 
 declare global {
   // eslint-disable-next-line no-var
-  var __melonopsAirtableBootstrap: Promise<unknown> | undefined;
+  var __melonbookAirtableBootstrap: Promise<unknown> | undefined;
 }
 
 async function mirrorRecordCount() {
@@ -18,17 +18,17 @@ async function mirrorRecordCount() {
 }
 
 function startBootstrap() {
-  if (!globalThis.__melonopsAirtableBootstrap) {
-    globalThis.__melonopsAirtableBootstrap = syncAllAirtableRecords()
+  if (!globalThis.__melonbookAirtableBootstrap) {
+    globalThis.__melonbookAirtableBootstrap = syncAllAirtableRecords()
       .catch(error => {
         console.error('[Airtable Bootstrap] failed:', error);
         throw error;
       })
       .finally(() => {
-        globalThis.__melonopsAirtableBootstrap = undefined;
+        globalThis.__melonbookAirtableBootstrap = undefined;
       });
   }
-  return globalThis.__melonopsAirtableBootstrap;
+  return globalThis.__melonbookAirtableBootstrap;
 }
 
 export async function GET() {
@@ -41,7 +41,7 @@ export async function GET() {
     });
   }
 
-  const running = Boolean(globalThis.__melonopsAirtableBootstrap);
+  const running = Boolean(globalThis.__melonbookAirtableBootstrap);
   startBootstrap();
 
   return NextResponse.json({

@@ -102,7 +102,7 @@ export default async function DataExplorerPage({
         <div>
           <h1 className="font-display text-3xl font-semibold text-brand-cream">Airtable Data Explorer</h1>
           <p className="text-brand-sage/60 text-sm">
-            Live mirror of Melonbook 2026 tables, fields, views, and records in Railway Postgres.
+            Live mirror of MelonBook 2026 tables, fields, views, and records in Railway Postgres.
           </p>
         </div>
         <div className="flex items-center gap-2">

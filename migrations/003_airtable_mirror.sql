@@ -1,6 +1,6 @@
 -- Raw Airtable mirror layer.
 -- This preserves every Airtable table, field, view, and record even when the
--- normalized MelonOps schema does not yet map a field.
+-- normalized MelonBook schema does not yet map a field.
 
 CREATE EXTENSION IF NOT EXISTS "pg_trgm";
 

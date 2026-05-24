@@ -340,7 +340,7 @@ async function buildARFromVoucherAmounts(
 // ============================================================
 export async function exportARToExcel(report: ARReport): Promise<Buffer> {
   const wb = new ExcelJS.Workbook();
-  wb.creator = 'MelonOps';
+  wb.creator = 'MelonBook';
   wb.created = new Date();
 
   const ws = wb.addWorksheet('AR Report', {

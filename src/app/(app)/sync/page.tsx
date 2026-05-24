@@ -118,7 +118,7 @@ export default function SyncCenterPage() {
       <div>
         <h1 className="font-display text-3xl font-semibold text-brand-cream">Sync Center</h1>
         <p className="text-brand-sage/60 text-sm">
-          Airtable ↔ PostgreSQL bidirectional sync — Melonbook™ 2026 (appmnU55C5f7A50U4)
+          Airtable ↔ PostgreSQL bidirectional sync — MelonBook™ 2026 (appmnU55C5f7A50U4)
         </p>
       </div>
 
@@ -128,7 +128,7 @@ export default function SyncCenterPage() {
           <div>
             <h2 className="text-sm font-semibold text-brand-cream">Full Airtable Mirror</h2>
             <p className="text-xs text-brand-sage/55 mt-1">
-              Pulls every Airtable table, field, view, and record into Railway Postgres so the app always has a complete copy of Melonbook 2026.
+              Pulls every Airtable table, field, view, and record into Railway Postgres so the app always has a complete copy of MelonBook 2026.
             </p>
           </div>
           <div className="flex items-center gap-2">

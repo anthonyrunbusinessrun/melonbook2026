@@ -86,7 +86,7 @@ export default async function DashboardPage() {
           <div>
             <div className="text-sm font-semibold text-brand-cream">Airtable Mirror Is Feeding This App</div>
             <div className="text-xs text-brand-sage/55 mt-1">
-              {mirror.transactionRecordCount.toLocaleString()} Transaction records synced from Melonbook 2026. Accounting view totals are available in AR Report and Data Explorer.
+              {mirror.transactionRecordCount.toLocaleString()} Transaction records synced from MelonBook 2026. Accounting view totals are available in AR Report and Data Explorer.
             </div>
           </div>
           <div className="flex items-center gap-4 text-xs font-mono">

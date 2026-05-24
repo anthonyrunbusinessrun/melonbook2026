@@ -1,7 +1,8 @@
 export const dynamic = "force-dynamic";
 import { buildARReport, exportARToExcel } from '@/lib/ar-engine';
 import { getMirrorARSummary } from '@/lib/ar-engine';
-import { Download, Filter, RefreshCw, AlertCircle } from 'lucide-react';
+import { query } from '@/db';
+import { Download, Filter, RefreshCw, AlertCircle, FilePlus2 } from 'lucide-react';
 import Link from 'next/link';
 
 function fmt(n: number) {
@@ -27,6 +28,26 @@ export default async function ARReportPage({
 
   let report;
   let mirrorSummary: Awaited<ReturnType<typeof getMirrorARSummary>> | null = null;
+  let manualAR: {
+    summary: {
+      count: string;
+      total_invoiced: string;
+      total_paid: string;
+      balance_due: string;
+    } | null;
+    entries: Array<{
+      id: string;
+      customer_code: string;
+      customer_name: string | null;
+      lot_no: string | null;
+      r_no: string | null;
+      inv_date: string | null;
+      total_invoiced: string;
+      amount_paid: string;
+      balance_due: string;
+      memo: string | null;
+    }>;
+  } | null = null;
   let error: string | null = null;
   let mirrorError: string | null = null;
 
@@ -45,6 +66,47 @@ export default async function ARReportPage({
     mirrorSummary = await getMirrorARSummary();
   } catch (e) {
     mirrorError = (e as Error).message;
+  }
+
+  try {
+    const [summary, entries] = await Promise.all([
+      query<{
+        count: string;
+        total_invoiced: string;
+        total_paid: string;
+        balance_due: string;
+      }>(`
+        SELECT
+          COUNT(*)::text as count,
+          COALESCE(SUM(total_invoiced), 0)::text as total_invoiced,
+          COALESCE(SUM(amount_paid), 0)::text as total_paid,
+          COALESCE(SUM(balance_due), 0)::text as balance_due
+        FROM ar_manual_entries
+        WHERE entry_status <> 'void'
+      `),
+      query<{
+        id: string;
+        customer_code: string;
+        customer_name: string | null;
+        lot_no: string | null;
+        r_no: string | null;
+        inv_date: string | null;
+        total_invoiced: string;
+        amount_paid: string;
+        balance_due: string;
+        memo: string | null;
+      }>(`
+        SELECT id, customer_code, customer_name, lot_no, r_no, inv_date,
+          total_invoiced::text, amount_paid::text, balance_due::text, memo
+        FROM ar_manual_entries
+        WHERE entry_status <> 'void'
+        ORDER BY created_at DESC
+        LIMIT 10
+      `),
+    ]);
+    manualAR = { summary: summary[0] || null, entries };
+  } catch {
+    manualAR = null;
   }
 
   return (
@@ -69,8 +131,71 @@ export default async function ARReportPage({
             <RefreshCw size={13} />
             Refresh
           </Link>
+          <Link href="/ar-input" className="btn-secondary flex items-center gap-1.5 text-sm">
+            <FilePlus2 size={13} />
+            AR Input
+          </Link>
         </div>
       </div>
+
+      {manualAR && Number(manualAR.summary?.count || 0) > 0 && (
+        <div className="card p-4">
+          <div className="flex items-start justify-between gap-3 flex-wrap">
+            <div>
+              <h2 className="text-sm font-semibold text-brand-cream">Manual AR Entries</h2>
+              <p className="text-xs text-brand-sage/55 mt-1">
+                Spreadsheet-shaped entries saved from AR Input. These use the same legacy formulas and are kept separate from Airtable mirror data for review.
+              </p>
+            </div>
+            <Link href="/ar-input" className="btn-secondary text-xs py-1.5">Open AR Input</Link>
+          </div>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mt-4">
+            {[
+              { label: 'Entries', value: Number(manualAR.summary?.count || 0).toLocaleString() },
+              { label: 'Total Invoiced', value: new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(Number(manualAR.summary?.total_invoiced || 0)) },
+              { label: 'Amount Paid', value: new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(Number(manualAR.summary?.total_paid || 0)) },
+              { label: 'Balance Due', value: new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(Number(manualAR.summary?.balance_due || 0)), highlight: true },
+            ].map(item => (
+              <div key={item.label} className={`stat-card ${item.highlight ? 'border-brand-gold/40' : ''}`}>
+                <span className="label">{item.label}</span>
+                <span className={`font-mono text-sm font-semibold ${item.highlight ? 'text-brand-gold' : 'text-brand-cream'}`}>{item.value}</span>
+              </div>
+            ))}
+          </div>
+          <div className="mt-4 overflow-x-auto">
+            <table className="ops-table">
+              <thead>
+                <tr>
+                  <th>Cust ID</th>
+                  <th>Customer</th>
+                  <th>Lot #</th>
+                  <th>R #</th>
+                  <th>Inv Date</th>
+                  <th className="text-right">Total Inv</th>
+                  <th className="text-right">Paid</th>
+                  <th className="text-right">Balance</th>
+                  <th>Memo</th>
+                </tr>
+              </thead>
+              <tbody>
+                {manualAR.entries.map(entry => (
+                  <tr key={entry.id}>
+                    <td className="font-mono text-brand-sage">{entry.customer_code}</td>
+                    <td>{entry.customer_name || ''}</td>
+                    <td className="font-mono">{entry.lot_no || ''}</td>
+                    <td className="font-mono">{entry.r_no || ''}</td>
+                    <td>{entry.inv_date ? new Date(entry.inv_date).toLocaleDateString() : ''}</td>
+                    <td className="text-right font-mono">{new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(Number(entry.total_invoiced || 0))}</td>
+                    <td className="text-right font-mono text-brand-sage">{new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(Number(entry.amount_paid || 0))}</td>
+                    <td className="text-right font-mono text-brand-gold">{new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(Number(entry.balance_due || 0))}</td>
+                    <td className="max-w-sm truncate text-brand-warm/55">{entry.memo || ''}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* Airtable accounting validation */}
       <div className="card p-4">

@@ -29,7 +29,7 @@ export async function GET() {
         errors: Number(mirrorRow.error_count || 0),
       } : null,
       timestamp: new Date().toISOString(),
-      app: 'MelonOps — Raymon J Land',
+      app: 'MelonBook — Raymon J Land',
       commit: process.env.RAILWAY_GIT_COMMIT_SHA || process.env.VERCEL_GIT_COMMIT_SHA || 'local',
     });
   } catch (e) {

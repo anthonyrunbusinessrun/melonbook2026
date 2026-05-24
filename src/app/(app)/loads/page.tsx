@@ -60,7 +60,7 @@ export default async function LoadsPage({
       <div className="flex items-start justify-between">
         <div>
           <h1 className="font-display text-3xl font-semibold text-brand-cream">Loads / Folios</h1>
-          <p className="text-brand-sage/60 text-sm">{folios.length} loads from Melonbook™</p>
+          <p className="text-brand-sage/60 text-sm">{folios.length} loads from MelonBook™</p>
         </div>
       </div>
 

@@ -2,15 +2,18 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { signOut, useSession } from 'next-auth/react';
 import {
   LayoutDashboard, FileText, ArrowLeftRight, Users,
   RefreshCw, Settings, ChevronLeft, ChevronRight,
   Truck, Package, AlertTriangle, Database, Moon, Sun,
+  LogOut, UserRoundCheck, FilePlus2,
 } from 'lucide-react';
 
 const nav = [
   { href: '/dashboard',    icon: LayoutDashboard, label: 'Dashboard',      group: 'main' },
   { href: '/ar-report',    icon: FileText,         label: 'AR Report',      group: 'main' },
+  { href: '/ar-input',     icon: FilePlus2,        label: 'AR Input',       group: 'main' },
   { href: '/transactions', icon: ArrowLeftRight,   label: 'Transactions',   group: 'main' },
   { href: '/customers',    icon: Users,            label: 'Customers',      group: 'main' },
   { href: '/data-explorer', icon: Database,        label: 'Data Explorer',  group: 'main' },
@@ -23,11 +26,13 @@ const nav = [
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const { data: session } = useSession();
+  const role = String((session?.user as { role?: string } | undefined)?.role || 'user');
   const [collapsed, setCollapsed] = useState(false);
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
 
   useEffect(() => {
-    const stored = window.localStorage.getItem('melonops-theme') as 'dark' | 'light' | null;
+    const stored = window.localStorage.getItem('melonbook-theme') as 'dark' | 'light' | null;
     const initial = stored || (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
     setTheme(initial);
     document.documentElement.classList.toggle('light', initial === 'light');
@@ -36,7 +41,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   function toggleTheme() {
     const next = theme === 'dark' ? 'light' : 'dark';
     setTheme(next);
-    window.localStorage.setItem('melonops-theme', next);
+    window.localStorage.setItem('melonbook-theme', next);
     document.documentElement.classList.toggle('light', next === 'light');
   }
 
@@ -55,7 +60,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </div>
           {!collapsed && (
             <div>
-              <div className="font-display text-brand-cream text-sm font-semibold leading-tight">MelonOps</div>
+              <div className="font-display text-brand-cream text-sm font-semibold leading-tight">MelonBook</div>
               <div className="text-brand-sage/50 text-xs">Raymon J Land</div>
             </div>
           )}
@@ -70,7 +75,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                   {group === 'main' ? 'Accounting' : group === 'ops' ? 'Operations' : 'System'}
                 </div>
               )}
-              {nav.filter(n => n.group === group).map(item => {
+              {nav.filter(n => n.group === group && (role === 'admin' || n.href !== '/admin')).map(item => {
                 const active = pathname.startsWith(`/${item.href.slice(1)}`);
                 return (
                   <Link
@@ -89,25 +94,50 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </nav>
 
         {/* Footer */}
-        <div className={`p-2 border-t border-brand-green/20 flex ${collapsed ? 'flex-col items-center gap-2' : 'items-center justify-between'}`}>
+        <div className={`p-2 border-t border-brand-green/20 space-y-2 ${collapsed ? 'flex flex-col items-center' : ''}`}>
           {!collapsed && (
-            <div className="text-xs text-brand-warm/40 px-2">
-              <div>v1.0.0</div>
+            <div className="px-2">
+              <div className="flex items-center gap-2 text-xs text-brand-warm/70">
+                <UserRoundCheck size={13} className="text-brand-sage" />
+                <span className="truncate">{session?.user?.email || 'Staff user'}</span>
+              </div>
+              <div className="text-[10px] text-brand-sage/45 mt-0.5 capitalize">
+                {role.replace(/_/g, ' ')}
+              </div>
             </div>
           )}
-          <button
-            onClick={toggleTheme}
-            className="p-1.5 rounded text-brand-sage/60 hover:text-brand-cream hover:bg-brand-green/20 transition-colors"
-            title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-          >
-            {theme === 'dark' ? <Sun size={14} /> : <Moon size={14} />}
-          </button>
-          <button
-            onClick={() => setCollapsed(!collapsed)}
-            className="p-1.5 rounded text-brand-sage/50 hover:text-brand-cream hover:bg-brand-green/20 transition-colors"
-          >
-            {collapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
-          </button>
+          <div className={`flex ${collapsed ? 'flex-col' : 'items-center justify-between'} gap-1`}>
+            <button
+              onClick={toggleTheme}
+              className="p-1.5 rounded text-brand-sage/60 hover:text-brand-cream hover:bg-brand-green/20 transition-colors"
+              title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+            >
+              {theme === 'dark' ? <Sun size={14} /> : <Moon size={14} />}
+            </button>
+            <button
+              onClick={() => signOut({ callbackUrl: '/login?switch=1' })}
+              className={`rounded text-brand-sage/60 hover:text-brand-cream hover:bg-brand-green/20 transition-colors ${collapsed ? 'p-1.5' : 'px-2 py-1.5 text-xs flex items-center gap-1'}`}
+              title="Switch account"
+            >
+              <UserRoundCheck size={14} />
+              {!collapsed && <span>Switch</span>}
+            </button>
+            <button
+              onClick={() => signOut({ callbackUrl: '/login' })}
+              className={`rounded text-brand-sage/60 hover:text-brand-brightred hover:bg-brand-red/10 transition-colors ${collapsed ? 'p-1.5' : 'px-2 py-1.5 text-xs flex items-center gap-1'}`}
+              title="Logout"
+            >
+              <LogOut size={14} />
+              {!collapsed && <span>Logout</span>}
+            </button>
+            <button
+              onClick={() => setCollapsed(!collapsed)}
+              className="p-1.5 rounded text-brand-sage/50 hover:text-brand-cream hover:bg-brand-green/20 transition-colors"
+              title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            >
+              {collapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
+            </button>
+          </div>
         </div>
       </aside>
 

@@ -1,4 +1,4 @@
--- MelonOps Initial Schema
+-- MelonBook Initial Schema
 -- Raymon J Land Watermelon Sales & Land Truck Brokers
 -- Internal Operations System
 
@@ -9,7 +9,7 @@ CREATE EXTENSION IF NOT EXISTS "pg_trgm";
 -- ============================================================
 -- ENUM TYPES
 -- ============================================================
-CREATE TYPE user_role AS ENUM ('admin', 'accounting', 'sales_logistics', 'readonly');
+CREATE TYPE user_role AS ENUM ('admin', 'user', 'accounting', 'sales_logistics', 'readonly');
 CREATE TYPE sync_origin AS ENUM ('airtable', 'postgres', 'seed', 'import');
 CREATE TYPE sync_direction AS ENUM ('at_to_pg', 'pg_to_at', 'reconcile');
 CREATE TYPE outbox_status AS ENUM ('pending', 'processing', 'done', 'failed');
