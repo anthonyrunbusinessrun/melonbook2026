@@ -3,22 +3,41 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
-  LayoutDashboard, FileText, ArrowLeftRight, Users,
-  RefreshCw, Settings, ChevronLeft, ChevronRight,
-  Truck, Package, AlertTriangle, LogOut, Database, Sun, Moon,
+  LayoutDashboard, FileText, ArrowLeftRight, Users, RefreshCw, Settings,
+  ChevronLeft, ChevronRight, Truck, Package, AlertTriangle, Database,
+  Sun, Moon, BookOpen, Zap, Receipt, Layers, ShoppingCart, Paperclip, Layout,
+  BarChart3,
 } from 'lucide-react';
 
 const nav = [
-  { href: '/dashboard',      icon: LayoutDashboard, label: 'Dashboard',      group: 'main' },
-  { href: '/ar-report',      icon: FileText,         label: 'AR Report',      group: 'main' },
-  { href: '/transactions',   icon: ArrowLeftRight,   label: 'Transactions',   group: 'main' },
-  { href: '/customers',      icon: Users,            label: 'Customers',      group: 'main' },
-  { href: '/loads',          icon: Truck,            label: 'Loads / Folios', group: 'ops'  },
-  { href: '/data-explorer',  icon: Database,         label: 'Data Explorer',  group: 'ops'  },
-  { href: '/anomalies',      icon: AlertTriangle,    label: 'Anomalies',      group: 'ops'  },
-  { href: '/sync',           icon: RefreshCw,        label: 'Sync Center',    group: 'admin'},
-  { href: '/admin',          icon: Settings,         label: 'Admin',          group: 'admin'},
+  // Accounting
+  { href: '/dashboard',      icon: LayoutDashboard, label: 'Dashboard',       group: 'accounting' },
+  { href: '/ar-report',      icon: FileText,         label: 'AR Report',       group: 'accounting' },
+  { href: '/transactions',   icon: ArrowLeftRight,   label: 'Transactions',    group: 'accounting' },
+  { href: '/accounts',       icon: BarChart3,        label: 'Accounts',        group: 'accounting' },
+  { href: '/vouchers',       icon: Receipt,          label: 'Vouchers',        group: 'accounting' },
+  // Operations
+  { href: '/contacts',       icon: Users,            label: 'Contacts',        group: 'ops' },
+  { href: '/loads',          icon: Truck,            label: 'Loads / Folios',  group: 'ops' },
+  { href: '/batches',        icon: Layers,           label: 'Batches',         group: 'ops' },
+  { href: '/items',          icon: ShoppingCart,     label: 'Items',           group: 'ops' },
+  { href: '/forms-list',     icon: Layout,           label: 'Forms',           group: 'ops' },
+  // Tools
+  { href: '/encoder',        icon: Zap,              label: 'Encoder Station', group: 'tools' },
+  { href: '/data-explorer',  icon: Database,         label: 'Data Explorer',   group: 'tools' },
+  { href: '/melonbook',      icon: BookOpen,         label: 'Melonbook™',      group: 'tools' },
+  { href: '/anomalies',      icon: AlertTriangle,    label: 'Anomalies',       group: 'tools' },
+  // System
+  { href: '/sync',           icon: RefreshCw,        label: 'Sync Center',     group: 'system' },
+  { href: '/admin',          icon: Settings,         label: 'Admin',           group: 'system' },
 ];
+
+const GROUP_LABELS: Record<string, string> = {
+  accounting: 'Accounting',
+  ops: 'Operations',
+  tools: 'Tools',
+  system: 'System',
+};
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -41,17 +60,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <div className={`flex h-screen overflow-hidden ${theme === 'light' ? 'app-light' : ''} bg-brand-dark`} data-theme={theme}>
-      {/* Sidebar */}
-      <aside className={`
-        flex flex-col border-r border-brand-green/20 bg-brand-forest shrink-0
-        transition-all duration-200
-        ${collapsed ? 'w-14' : 'w-56'}
-      `}>
+    <div className={`flex h-screen overflow-hidden bg-brand-dark`} data-theme={theme}>
+      <aside className={`flex flex-col border-r border-brand-green/20 bg-brand-forest shrink-0 transition-all duration-200 ${collapsed ? 'w-14' : 'w-56'}`}>
         {/* Logo */}
         <div className={`flex items-center gap-2.5 px-3 py-4 border-b border-brand-green/20 ${collapsed ? 'justify-center' : ''}`}>
           <div className="w-7 h-7 bg-brand-midgreen rounded flex items-center justify-center shrink-0">
-            <span className="text-white font-bold text-sm">🍉</span>
+            <span className="font-bold text-sm">🍉</span>
           </div>
           {!collapsed && (
             <div>
@@ -61,17 +75,17 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           )}
         </div>
 
-        {/* Navigation */}
+        {/* Nav */}
         <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-0.5">
-          {['main', 'ops', 'admin'].map(group => (
+          {['accounting', 'ops', 'tools', 'system'].map(group => (
             <div key={group}>
               {!collapsed && (
                 <div className="text-[10px] font-semibold text-brand-sage/40 uppercase tracking-widest px-2 pt-3 pb-1">
-                  {group === 'main' ? 'Accounting' : group === 'ops' ? 'Operations' : 'System'}
+                  {GROUP_LABELS[group]}
                 </div>
               )}
               {nav.filter(n => n.group === group).map(item => {
-                const active = pathname.startsWith(item.href);
+                const active = pathname.startsWith(item.href) && item.href !== '/';
                 return (
                   <Link
                     key={item.href}
@@ -81,6 +95,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                   >
                     <item.icon size={15} className={active ? 'text-brand-sage' : ''} />
                     {!collapsed && <span>{item.label}</span>}
+                    {!collapsed && item.href === '/encoder' && (
+                      <span className="ml-auto text-[9px] bg-brand-gold/20 text-brand-gold px-1 rounded">NEW</span>
+                    )}
                   </Link>
                 );
               })}
@@ -90,33 +107,21 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
         {/* Footer */}
         <div className={`p-2 border-t border-brand-green/20 flex ${collapsed ? 'flex-col items-center gap-2' : 'items-center justify-between'}`}>
-          {!collapsed && (
-            <div className="text-xs text-brand-warm/40 px-2">
-              <div>v1.0.0</div>
-            </div>
-          )}
+          {!collapsed && <div className="text-xs text-brand-warm/40 px-2">v2.0.0</div>}
           <div className={`flex ${collapsed ? 'flex-col' : 'flex-row'} gap-1`}>
-            <button
-              onClick={toggleTheme}
-              title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
-              className="p-1.5 rounded text-brand-sage/50 hover:text-brand-cream hover:bg-brand-green/20 transition-colors"
-            >
+            <button onClick={toggleTheme} title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+              className="p-1.5 rounded text-brand-sage/50 hover:text-brand-cream hover:bg-brand-green/20 transition-colors">
               {theme === 'dark' ? <Sun size={14} /> : <Moon size={14} />}
             </button>
-            <button
-              onClick={() => setCollapsed(!collapsed)}
-              className="p-1.5 rounded text-brand-sage/50 hover:text-brand-cream hover:bg-brand-green/20 transition-colors"
-            >
+            <button onClick={() => setCollapsed(!collapsed)}
+              className="p-1.5 rounded text-brand-sage/50 hover:text-brand-cream hover:bg-brand-green/20 transition-colors">
               {collapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
             </button>
           </div>
         </div>
       </aside>
 
-      {/* Main content */}
-      <main className="flex-1 overflow-auto">
-        {children}
-      </main>
+      <main className="flex-1 overflow-auto">{children}</main>
     </div>
   );
 }

@@ -1,203 +1,188 @@
-export const dynamic = "force-dynamic";
-import { query } from '@/db';
-import { Search, SlidersHorizontal } from 'lucide-react';
-
-function fmt(n: number | null) {
-  if (n === null || n === undefined) return '—';
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n);
-}
+export const dynamic = 'force-dynamic';
+import { getTablePage, fieldValue, fmtCurrency, fmtDate, TABLES } from '@/lib/airtable-direct';
+import Link from 'next/link';
+import { Search, RefreshCw, Download, TrendingUp, TrendingDown } from 'lucide-react';
 
 export default async function TransactionsPage({
-  searchParams
+  searchParams,
 }: {
-  searchParams: Promise<{ q?: string; acct?: string; page?: string }>
+  searchParams: Promise<{ q?: string; acct?: string; page?: string; offset?: string }>;
 }) {
   const sp = await searchParams;
-  const page = parseInt(sp.page || '1');
-  const limit = 100;
-  const offset = (page - 1) * limit;
   const search = sp.q || '';
   const acctFilter = sp.acct || '';
+  const offset = sp.offset || undefined;
 
-  const whereClauses = ['t.deleted_at IS NULL'];
-  const params: unknown[] = [];
-  let pi = 1;
+  let filterFormula = '';
+  const filters: string[] = [];
+  if (search) filters.push(`OR(FIND("${search.toUpperCase()}",UPPER({Trans #})),FIND("${search.toUpperCase()}",UPPER({Memo})),FIND("${search.toUpperCase()}",UPPER(ARRAYJOIN({Acct Name}))))`);
+  if (acctFilter) filters.push(`ARRAYJOIN({Acct Name})="${acctFilter}"`);
+  if (filters.length) filterFormula = filters.length > 1 ? `AND(${filters.join(',')})` : filters[0];
 
-  if (search) {
-    whereClauses.push(`(t.trans_no ILIKE $${pi} OR t.memo ILIKE $${pi} OR t.ref1 ILIKE $${pi} OR t.account_name ILIKE $${pi})`);
-    params.push(`%${search}%`);
-    pi++;
+  let data;
+  let error = '';
+  try {
+    data = await getTablePage(TABLES.transactions, {
+      pageSize: 100,
+      offset,
+      filterFormula: filterFormula || undefined,
+      sort: [{ field: 'ID', direction: 'desc' }],
+    });
+  } catch (e) {
+    error = (e as Error).message;
+    data = { records: [], offset: undefined };
   }
-  if (acctFilter) {
-    whereClauses.push(`t.account_no = $${pi}`);
-    params.push(parseInt(acctFilter));
-    pi++;
-  }
 
-  const whereStr = whereClauses.length ? `WHERE ${whereClauses.join(' AND ')}` : '';
+  const records = data?.records || [];
+  const nextOffset = data?.offset;
 
-  const [transactions, [countRow]] = await Promise.all([
-    query<{
-      id: string; trans_no: string; account_no: number; account_name: string;
-      debit: number; credit: number; memo: string; ref1: string; ref2: string;
-      accrue_date: string; voucher_code: string; folio_ref: string;
-    }>(
-      `SELECT t.id, t.trans_no, t.account_no, t.account_name,
-         t.debit, t.credit, t.memo, t.ref1, t.ref2,
-         t.accrue_date, t.voucher_code, t.folio_ref
-       FROM transactions t
-       ${whereStr}
-       ORDER BY t.accrue_date DESC NULLS LAST, t.id DESC
-       LIMIT $${pi} OFFSET $${pi+1}`,
-      [...params, limit, offset]
-    ),
-    query<{ count: number }>(
-      `SELECT COUNT(*) as count FROM transactions t ${whereStr}`,
-      params
-    ),
-  ]);
-
-  const total = Number(countRow?.count || 0);
-  const totalPages = Math.ceil(total / limit);
-
-  // Get account list for filter
-  const accounts = await query<{ acct_no: number; title: string; count: number }>(
-    `SELECT a.acct_no, a.title, COUNT(t.id) as count
-     FROM accounts a JOIN transactions t ON t.account_id = a.id
-     WHERE a.acct_no IN (1152, 1122, 1710, 1610, 1310)
-     GROUP BY a.acct_no, a.title ORDER BY a.acct_no`
-  );
+  // Compute totals for visible page
+  let totalDebit = 0, totalCredit = 0;
+  records.forEach(r => {
+    const d = r.fields['Debit'];
+    const c = r.fields['Credit'];
+    if (typeof d === 'number') totalDebit += d;
+    if (typeof c === 'number') totalCredit += c;
+  });
 
   return (
     <div className="p-6 space-y-4">
-      <div className="flex items-start justify-between">
+      <div className="flex items-start justify-between flex-wrap gap-3">
         <div>
           <h1 className="font-display text-3xl font-semibold text-brand-cream">Transactions</h1>
           <p className="text-brand-sage/60 text-sm">
-            {total.toLocaleString()} ledger entries · Double-entry from Melonbook™ 2026
+            30,688 ledger entries · Live from Melonbook™ 2026 Airtable · Double-entry accounting
           </p>
         </div>
-      </div>
-
-      {/* Filters */}
-      <div className="card p-3 flex items-center gap-4 flex-wrap">
-        <form method="GET" className="flex items-center gap-3 flex-wrap flex-1">
-          <div className="relative flex-1 max-w-xs">
-            <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-brand-sage/40" />
-            <input
-              name="q"
-              defaultValue={search}
-              placeholder="Search trans #, memo, ref..."
-              className="input pl-8 h-8 text-xs"
-            />
-          </div>
-          <div className="flex items-center gap-2">
-            <SlidersHorizontal size={13} className="text-brand-sage/60" />
-            <select name="acct" defaultValue={acctFilter} className="select h-8 text-xs w-52">
-              <option value="">All Accounts</option>
-              {accounts.map(a => (
-                <option key={a.acct_no} value={a.acct_no}>
-                  {a.acct_no} — {a.title} ({Number(a.count).toLocaleString()})
-                </option>
-              ))}
-            </select>
-          </div>
-          <button type="submit" className="btn-primary h-8 px-3 text-xs">Filter</button>
-          {(search || acctFilter) && (
-            <a href="/transactions" className="text-xs text-brand-sage/50 hover:text-brand-sage">Clear</a>
-          )}
-        </form>
-        <div className="text-xs text-brand-sage/40">
-          Page {page} of {totalPages}
+        <div className="flex gap-2">
+          <a href="/api/ar/export" className="btn-gold flex items-center gap-1.5 text-sm">
+            <Download size={13} /> Export Excel
+          </a>
         </div>
       </div>
 
-      {/* Account quick filters */}
-      <div className="flex items-center gap-2 flex-wrap">
-        {[
-          { no: '', label: 'All' },
-          { no: '1152', label: 'AR (1152)' },
-          { no: '1122', label: 'Undeposited (1122)' },
-          { no: '1610', label: 'Sales (1610)' },
-          { no: '1710', label: 'Freight (1710)' },
-          { no: '1310', label: 'AP (1310)' },
-        ].map(f => (
-          <a
-            key={f.no}
-            href={`/transactions?${new URLSearchParams({ ...(search ? { q: search } : {}), ...(f.no ? { acct: f.no } : {}) }).toString()}`}
-            className={`px-3 py-1 rounded-full text-xs transition-colors ${acctFilter === f.no ? 'bg-brand-midgreen text-white' : 'bg-brand-forest border border-brand-green/20 text-brand-warm/60 hover:text-brand-cream'}`}
-          >
-            {f.label}
-          </a>
-        ))}
+      {/* Summary cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="stat-card">
+          <div className="label">Total Records</div>
+          <div className="text-2xl font-bold text-brand-cream font-mono">30,688</div>
+          <div className="text-xs text-brand-sage/50">All ledger entries</div>
+        </div>
+        <div className="stat-card">
+          <div className="label flex items-center gap-1"><TrendingUp size={11} /> Page Debits</div>
+          <div className="text-xl font-bold text-brand-cream font-mono">{fmtCurrency(totalDebit)}</div>
+        </div>
+        <div className="stat-card">
+          <div className="label flex items-center gap-1"><TrendingDown size={11} /> Page Credits</div>
+          <div className="text-xl font-bold text-brand-cream font-mono">{fmtCurrency(totalCredit)}</div>
+        </div>
+        <div className="stat-card">
+          <div className="label">Page Balance</div>
+          <div className={`text-xl font-bold font-mono ${totalDebit - totalCredit >= 0 ? 'text-brand-sage' : 'text-brand-brightred'}`}>
+            {fmtCurrency(totalDebit - totalCredit)}
+          </div>
+        </div>
       </div>
 
-      {/* Transactions table */}
+      {/* Search and filters */}
+      <form className="card p-3 flex items-center gap-3 flex-wrap">
+        <div className="relative flex-1 min-w-48">
+          <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-brand-sage/40" />
+          <input name="q" defaultValue={search} placeholder="Search Trans #, Account, Memo..." className="input pl-8 text-sm py-1.5 w-full" />
+        </div>
+        <select name="acct" defaultValue={acctFilter} className="select text-sm py-1.5 w-40">
+          <option value="">All Accounts</option>
+          <option value="Accounts Receivable">1152 - A/R</option>
+          <option value="UNDEPOSITED FUNDS">1122 - Undeposited</option>
+          <option value="Freight Cost Watermelons">1710 - Freight</option>
+          <option value="Sales - Watermelons">1610 - Sales</option>
+          <option value="Accounts Payable">1310 - A/P</option>
+        </select>
+        <button type="submit" className="btn-secondary text-sm py-1.5 flex items-center gap-1.5">
+          <RefreshCw size={12} /> Filter
+        </button>
+        {(search || acctFilter) && (
+          <Link href="/transactions" className="text-brand-sage/60 text-sm hover:text-brand-cream">Clear</Link>
+        )}
+      </form>
+
+      {error && (
+        <div className="card p-4 border-brand-brightred/30">
+          <p className="text-brand-brightred text-sm">⚠ Airtable error: {error}</p>
+          <p className="text-brand-sage/60 text-xs mt-1">Check AIRTABLE_API_KEY environment variable.</p>
+        </div>
+      )}
+
+      {/* Table */}
       <div className="card overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="ops-table">
+          <table className="w-full text-xs">
             <thead>
-              <tr>
-                <th>Trans #</th>
-                <th>Date</th>
-                <th>Account</th>
-                <th>Voucher</th>
-                <th>Folio / Lot</th>
-                <th>Ref 1</th>
-                <th>Ref 2</th>
-                <th className="text-right">Debit</th>
-                <th className="text-right">Credit</th>
-                <th>Memo</th>
+              <tr className="bg-brand-dark/40 border-b border-brand-green/20">
+                {['Trans #','Accrue','Account','Acct Name','D/C','Folio','Issued','Ref 1','Memo','Debit','Credit'].map(h => (
+                  <th key={h} className="text-left px-3 py-2.5 text-brand-sage/60 font-semibold whitespace-nowrap">{h}</th>
+                ))}
               </tr>
             </thead>
             <tbody>
-              {transactions.length === 0 ? (
-                <tr>
-                  <td colSpan={10} className="text-center py-12 text-brand-sage/40">
-                    {search || acctFilter ? 'No transactions match your filters' : 'No transactions found — run initial sync'}
-                  </td>
-                </tr>
-              ) : (
-                transactions.map(t => (
-                  <tr key={t.id}>
-                    <td className="font-mono text-brand-sage text-xs">{t.trans_no}</td>
-                    <td>{t.accrue_date ? new Date(t.accrue_date).toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: '2-digit' }) : '—'}</td>
-                    <td>
-                      <span className={`text-xs ${t.account_no === 1152 ? 'text-brand-gold' : t.account_no === 1122 ? 'text-brand-sage' : 'text-brand-warm/70'}`}>
-                        {t.account_no && <code className="font-mono">{t.account_no}</code>}
-                        {t.account_name && <span className="ml-1 text-brand-warm/50">{t.account_name}</span>}
+              {records.length === 0 && !error ? (
+                <tr><td colSpan={11} className="text-center py-12 text-brand-sage/40">
+                  <RefreshCw size={20} className="mx-auto mb-2 animate-spin" />
+                  Loading from Airtable…
+                </td></tr>
+              ) : records.map((rec, i) => {
+                const f = rec.fields;
+                const transNo = String(f['Trans #'] || '');
+                const isDebit = transNo.startsWith('DR');
+                const isCredit = transNo.startsWith('CR');
+                const debit = typeof f['Debit'] === 'number' ? f['Debit'] : null;
+                const credit = typeof f['Credit'] === 'number' ? f['Credit'] : null;
+                return (
+                  <tr key={rec.id} className={`table-row-hover border-b border-brand-green/10 ${i % 2 === 1 ? 'bg-brand-dark/10' : ''}`}>
+                    <td className={`px-3 py-2 font-mono text-xs whitespace-nowrap font-medium ${isDebit ? 'text-brand-gold' : isCredit ? 'text-brand-sage' : 'text-brand-cream'}`}>
+                      {transNo}
+                    </td>
+                    <td className="px-3 py-2 text-brand-sage/70 whitespace-nowrap">{fmtDate(fieldValue(f['Accrue']))}</td>
+                    <td className="px-3 py-2 font-mono text-brand-cream/80 whitespace-nowrap">{fieldValue(f['Acct'])}</td>
+                    <td className="px-3 py-2 text-brand-cream/70 whitespace-nowrap max-w-[140px] truncate">{fieldValue(f['Acct Name'])}</td>
+                    <td className="px-3 py-2">
+                      <span className={`badge text-[10px] ${fieldValue(f['Df']) === 'Dr' ? 'badge-gold' : 'badge-green'}`}>
+                        {fieldValue(f['Df'])}
                       </span>
                     </td>
-                    <td className="font-mono text-brand-warm/60">{t.voucher_code}</td>
-                    <td className="font-mono text-brand-warm/60">{t.folio_ref}</td>
-                    <td className="text-brand-warm/70">{t.ref1}</td>
-                    <td className="text-brand-warm/50">{t.ref2}</td>
-                    <td className="text-right">{t.debit ? <span className="money">{fmt(t.debit)}</span> : <span className="text-brand-warm/20">—</span>}</td>
-                    <td className="text-right">{t.credit ? <span className="money-positive">{fmt(t.credit)}</span> : <span className="text-brand-warm/20">—</span>}</td>
-                    <td className="text-brand-warm/50 max-w-xs truncate">{t.memo}</td>
+                    <td className="px-3 py-2 font-mono text-brand-sage/60 whitespace-nowrap">{fieldValue(f['Folio'])}</td>
+                    <td className="px-3 py-2 text-brand-sage/60 whitespace-nowrap">{fmtDate(fieldValue(f['Issued']))}</td>
+                    <td className="px-3 py-2 text-brand-cream/60 whitespace-nowrap max-w-[100px] truncate">{fieldValue(f['Ref 1'])}</td>
+                    <td className="px-3 py-2 text-brand-cream/60 max-w-[120px] truncate">{String(f['Memo'] || '')}</td>
+                    <td className={`px-3 py-2 font-mono whitespace-nowrap text-right ${debit ? 'text-brand-gold' : 'text-brand-sage/30'}`}>
+                      {debit ? fmtCurrency(debit) : '—'}
+                    </td>
+                    <td className={`px-3 py-2 font-mono whitespace-nowrap text-right ${credit ? 'text-brand-sage' : 'text-brand-sage/30'}`}>
+                      {credit ? fmtCurrency(credit) : '—'}
+                    </td>
                   </tr>
-                ))
-              )}
+                );
+              })}
             </tbody>
           </table>
         </div>
 
         {/* Pagination */}
-        {totalPages > 1 && (
-          <div className="px-4 py-3 border-t border-brand-green/20 flex items-center justify-between text-xs text-brand-warm/60">
-            <span>Showing {offset + 1}–{Math.min(offset + limit, total)} of {total.toLocaleString()}</span>
-            <div className="flex items-center gap-2">
-              {page > 1 && (
-                <a href={`/transactions?${new URLSearchParams({ ...(search ? { q: search } : {}), ...(acctFilter ? { acct: acctFilter } : {}), page: (page - 1).toString() })}`}
-                  className="btn-secondary py-1 text-xs">← Prev</a>
-              )}
-              {page < totalPages && (
-                <a href={`/transactions?${new URLSearchParams({ ...(search ? { q: search } : {}), ...(acctFilter ? { acct: acctFilter } : {}), page: (page + 1).toString() })}`}
-                  className="btn-secondary py-1 text-xs">Next →</a>
-              )}
-            </div>
+        <div className="px-4 py-3 border-t border-brand-green/20 flex items-center justify-between">
+          <span className="text-xs text-brand-sage/60">
+            Showing {records.length} records {search || acctFilter ? '(filtered)' : ''}
+          </span>
+          <div className="flex gap-2">
+            {offset && (
+              <Link
+                href={`/transactions?offset=${offset}${search ? `&q=${search}` : ''}${acctFilter ? `&acct=${encodeURIComponent(acctFilter)}` : ''}`}
+                className="btn-secondary text-xs py-1.5"
+              >
+                Next Page →
+              </Link>
+            )}
           </div>
-        )}
+        </div>
       </div>
     </div>
   );
