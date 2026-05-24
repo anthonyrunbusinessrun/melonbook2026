@@ -40,7 +40,7 @@ export default function LoginPage() {
           <div className="inline-flex items-center justify-center w-14 h-14 bg-brand-midgreen rounded-xl mb-4 shadow-lg shadow-brand-green/20">
             <span className="text-3xl">🍉</span>
           </div>
-          <h1 className="font-display text-3xl font-semibold text-brand-cream">MelonOps</h1>
+          <h1 className="font-display text-3xl font-semibold text-brand-cream">MelonBook</h1>
           <p className="text-brand-sage/60 text-sm mt-1">
             Raymon J Land Internal Operations
           </p>

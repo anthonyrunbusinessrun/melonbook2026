@@ -113,40 +113,123 @@
 }
 .sync-pulse { animation: pulse-green 2s ease-in-out infinite; }
 
-/* ─── Light mode ────────────────────────────────────────────── */
-[data-theme="light"],
-.app-light {
-  background-color: #f4f7f0 !important;
-  color: #1a2216 !important;
+/* Light mode keeps the same Raymon J Land palette, but flips the work surface
+   so accounting screens are easier to read in bright offices. */
+html.light {
+  color-scheme: light;
 }
 
-[data-theme="light"] .bg-brand-dark { background-color: #f4f7f0 !important; }
-[data-theme="light"] .bg-brand-forest { background-color: #e8f0e4 !important; }
-[data-theme="light"] .border-brand-green\/20 { border-color: rgba(74,122,53,0.25) !important; }
-[data-theme="light"] .text-brand-cream { color: #1a2216 !important; }
-[data-theme="light"] .text-brand-sage\/60 { color: rgba(45,74,34,0.7) !important; }
-[data-theme="light"] .text-brand-sage\/40 { color: rgba(45,74,34,0.5) !important; }
-[data-theme="light"] .text-brand-warm\/70 { color: rgba(26,34,22,0.7) !important; }
-[data-theme="light"] .text-brand-warm\/40 { color: rgba(26,34,22,0.4) !important; }
-[data-theme="light"] .card { background-color: #fff !important; border-color: rgba(74,122,53,0.2) !important; }
-[data-theme="light"] .input {
-  background-color: #fff !important;
-  border-color: rgba(74,122,53,0.35) !important;
-  color: #1a2216 !important;
+html.light .bg-brand-dark,
+html.light .bg-brand-forest {
+  background-color: #F5F0E8;
 }
-[data-theme="light"] .input::placeholder { color: rgba(74,122,53,0.5) !important; }
-[data-theme="light"] .btn-secondary {
-  background-color: #fff !important;
-  border-color: rgba(74,122,53,0.35) !important;
-  color: #1a2216 !important;
+
+html.light .bg-brand-dark\/40,
+html.light .bg-brand-dark\/60 {
+  background-color: rgba(237, 231, 213, 0.72);
 }
-[data-theme="light"] .sidebar-link { color: rgba(26,34,22,0.7) !important; }
-[data-theme="light"] .sidebar-link:hover,
-[data-theme="light"] .sidebar-link.active { color: #1a2216 !important; background-color: rgba(74,122,53,0.15) !important; }
-[data-theme="light"] table { color: #1a2216 !important; }
-[data-theme="light"] thead { background-color: #e8f0e4 !important; }
-[data-theme="light"] th { color: rgba(26,34,22,0.6) !important; border-color: rgba(74,122,53,0.2) !important; }
-[data-theme="light"] td { color: rgba(26,34,22,0.85) !important; }
-[data-theme="light"] tr:nth-child(even) { background-color: rgba(74,122,53,0.05) !important; }
-[data-theme="light"] ::-webkit-scrollbar-track { background: #e8f0e4; }
-[data-theme="light"] ::-webkit-scrollbar-thumb { background: #7aad5e; }
+
+html.light .bg-brand-green\/10,
+html.light .hover\:bg-brand-green\/10:hover {
+  background-color: rgba(122, 173, 94, 0.16);
+}
+
+html.light .bg-brand-green\/20,
+html.light .hover\:bg-brand-green\/20:hover {
+  background-color: rgba(122, 173, 94, 0.22);
+}
+
+html.light .bg-brand-green\/30 {
+  background-color: rgba(74, 122, 53, 0.20);
+}
+
+html.light .text-brand-cream,
+html.light .text-brand-warm,
+html.light .text-brand-warm\/90,
+html.light .hover\:text-brand-cream:hover {
+  color: #0D1A0A;
+}
+
+html.light .text-brand-warm\/70 {
+  color: rgba(13, 26, 10, 0.72);
+}
+
+html.light .text-brand-warm\/60,
+html.light .text-brand-sage\/60 {
+  color: rgba(13, 26, 10, 0.62);
+}
+
+html.light .text-brand-warm\/50,
+html.light .text-brand-sage\/50 {
+  color: rgba(13, 26, 10, 0.52);
+}
+
+html.light .text-brand-warm\/40,
+html.light .text-brand-sage\/40 {
+  color: rgba(13, 26, 10, 0.42);
+}
+
+html.light .text-brand-sage,
+html.light .text-brand-sage\/70,
+html.light .text-brand-sage\/80 {
+  color: #2D4A22;
+}
+
+html.light .border-brand-green\/10,
+html.light .border-brand-green\/20,
+html.light .border-brand-green\/30,
+html.light .border-brand-green\/40 {
+  border-color: rgba(45, 74, 34, 0.20);
+}
+
+html.light .card,
+html.light .stat-card {
+  background-color: #FFFDF7;
+  border-color: rgba(45, 74, 34, 0.20);
+  box-shadow: 0 1px 2px rgba(13, 26, 10, 0.05);
+}
+
+html.light .input,
+html.light .select {
+  background-color: #FFFDF7;
+  border-color: rgba(45, 74, 34, 0.24);
+  color: #0D1A0A;
+}
+
+html.light .input::placeholder {
+  color: rgba(13, 26, 10, 0.36);
+}
+
+html.light .btn-secondary {
+  background-color: #FFFDF7;
+  border-color: rgba(45, 74, 34, 0.24);
+  color: #0D1A0A;
+}
+
+html.light .sidebar-link {
+  color: rgba(13, 26, 10, 0.72);
+}
+
+html.light .sidebar-link.active {
+  color: #0D1A0A;
+  background-color: rgba(122, 173, 94, 0.24);
+}
+
+html.light .ops-table th {
+  background-color: #EDE7D5;
+  color: rgba(13, 26, 10, 0.76);
+}
+
+html.light .ops-table td {
+  color: rgba(13, 26, 10, 0.82);
+  border-bottom-color: rgba(45, 74, 34, 0.12);
+}
+
+html.light .ops-table tr:hover td {
+  background-color: rgba(122, 173, 94, 0.14);
+}
+
+html.light pre {
+  background-color: #EDE7D5;
+  color: #0D1A0A;
+}

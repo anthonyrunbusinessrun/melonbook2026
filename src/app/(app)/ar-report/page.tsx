@@ -1,6 +1,8 @@
 export const dynamic = "force-dynamic";
-import { buildARReport, exportARToExcel, getMirrorARSummary } from '@/lib/ar-engine';
-import { Download, Filter, RefreshCw, AlertCircle } from 'lucide-react';
+import { buildARReport, exportARToExcel } from '@/lib/ar-engine';
+import { getMirrorARSummary } from '@/lib/ar-engine';
+import { query } from '@/db';
+import { Download, Filter, RefreshCw, AlertCircle, FilePlus2 } from 'lucide-react';
 import Link from 'next/link';
 
 function fmt(n: number) {
@@ -25,25 +27,87 @@ export default async function ARReportPage({
   const customerFilter = sp.customer ? sp.customer.split(',').map(s => s.trim()) : undefined;
 
   let report;
+  let mirrorSummary: Awaited<ReturnType<typeof getMirrorARSummary>> | null = null;
+  let manualAR: {
+    summary: {
+      count: string;
+      total_invoiced: string;
+      total_paid: string;
+      balance_due: string;
+    } | null;
+    entries: Array<{
+      id: string;
+      customer_code: string;
+      customer_name: string | null;
+      lot_no: string | null;
+      r_no: string | null;
+      inv_date: string | null;
+      total_invoiced: string;
+      amount_paid: string;
+      balance_due: string;
+      memo: string | null;
+    }>;
+  } | null = null;
   let error: string | null = null;
+  let mirrorError: string | null = null;
 
-  const [reportResult, mirrorAR] = await Promise.allSettled([
-    buildARReport({
+  try {
+    report = await buildARReport({
       asOfDate: sp.date ? new Date(sp.date) : new Date(),
       customerCodes: customerFilter,
       includeZeroBalance,
-    }),
-    getMirrorARSummary(),
-  ]);
-
-  if (reportResult.status === 'fulfilled') {
-    report = reportResult.value;
-  } else {
-    error = reportResult.reason?.message || 'Report failed';
+    });
+  } catch (e) {
+    error = (e as Error).message;
     report = null;
   }
 
-  const mirrorData = mirrorAR.status === 'fulfilled' ? mirrorAR.value : null;
+  try {
+    mirrorSummary = await getMirrorARSummary();
+  } catch (e) {
+    mirrorError = (e as Error).message;
+  }
+
+  try {
+    const [summary, entries] = await Promise.all([
+      query<{
+        count: string;
+        total_invoiced: string;
+        total_paid: string;
+        balance_due: string;
+      }>(`
+        SELECT
+          COUNT(*)::text as count,
+          COALESCE(SUM(total_invoiced), 0)::text as total_invoiced,
+          COALESCE(SUM(amount_paid), 0)::text as total_paid,
+          COALESCE(SUM(balance_due), 0)::text as balance_due
+        FROM ar_manual_entries
+        WHERE entry_status <> 'void'
+      `),
+      query<{
+        id: string;
+        customer_code: string;
+        customer_name: string | null;
+        lot_no: string | null;
+        r_no: string | null;
+        inv_date: string | null;
+        total_invoiced: string;
+        amount_paid: string;
+        balance_due: string;
+        memo: string | null;
+      }>(`
+        SELECT id, customer_code, customer_name, lot_no, r_no, inv_date,
+          total_invoiced::text, amount_paid::text, balance_due::text, memo
+        FROM ar_manual_entries
+        WHERE entry_status <> 'void'
+        ORDER BY created_at DESC
+        LIMIT 10
+      `),
+    ]);
+    manualAR = { summary: summary[0] || null, entries };
+  } catch {
+    manualAR = null;
+  }
 
   return (
     <div className="p-6 space-y-4">
@@ -67,64 +131,138 @@ export default async function ARReportPage({
             <RefreshCw size={13} />
             Refresh
           </Link>
+          <Link href="/ar-input" className="btn-secondary flex items-center gap-1.5 text-sm">
+            <FilePlus2 size={13} />
+            AR Input
+          </Link>
         </div>
       </div>
 
-      {/* Airtable Mirror AR Data */}
-      {mirrorData && (
+      {manualAR && Number(manualAR.summary?.count || 0) > 0 && (
         <div className="card p-4">
-          <h2 className="font-semibold text-brand-cream text-sm mb-3">
-            📊 Airtable Source of Truth — Account Rollups
-          </h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <div className="stat-card">
-              <div className="label">1152 Invoiced (DR)</div>
-              <div className="text-xl font-bold text-brand-cream font-mono">
-                {mirrorData.invoiced.rollup
-                  ? new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(mirrorData.invoiced.rollup)
-                  : new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(mirrorData.invoiced.total)
-                }
-              </div>
-              <div className="text-xs text-brand-sage/50">{mirrorData.invoiced.count} transactions</div>
+          <div className="flex items-start justify-between gap-3 flex-wrap">
+            <div>
+              <h2 className="text-sm font-semibold text-brand-cream">Manual AR Entries</h2>
+              <p className="text-xs text-brand-sage/55 mt-1">
+                Spreadsheet-shaped entries saved from AR Input. These use the same legacy formulas and are kept separate from Airtable mirror data for review.
+              </p>
             </div>
-            <div className="stat-card">
-              <div className="label">1152 Credits</div>
-              <div className="text-xl font-bold text-brand-cream font-mono">
-                {mirrorData.credits.rollup
-                  ? new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(mirrorData.credits.rollup)
-                  : new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(mirrorData.credits.total)
-                }
-              </div>
-              <div className="text-xs text-brand-sage/50">ACCTG – BAL AR INV 1152</div>
-            </div>
-            <div className="stat-card">
-              <div className="label">Net AR Balance</div>
-              <div className="text-xl font-bold text-brand-gold font-mono">
-                {mirrorData.balance.rollup !== null
-                  ? new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(mirrorData.balance.rollup)
-                  : new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(mirrorData.balance.computed)
-                }
-              </div>
-              <div className="text-xs text-brand-sage/50">1152 Debits − Credits</div>
-            </div>
-            <div className="stat-card">
-              <div className="label">1122 Payments Rcvd</div>
-              <div className="text-xl font-bold text-brand-sage font-mono">
-                {mirrorData.paid.rollup
-                  ? new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(mirrorData.paid.rollup)
-                  : new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(mirrorData.paid.total)
-                }
-              </div>
-              <div className="text-xs text-brand-sage/50">ACCTG – BAL AR INV 1122</div>
-            </div>
+            <Link href="/ar-input" className="btn-secondary text-xs py-1.5">Open AR Input</Link>
           </div>
-          {!mirrorData.hasMirrorData && (
-            <p className="text-xs text-brand-gold mt-3">
-              ⚠ No transaction mirror data yet. Go to Sync Center → Sync All Tables to pull Airtable data.
-            </p>
-          )}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mt-4">
+            {[
+              { label: 'Entries', value: Number(manualAR.summary?.count || 0).toLocaleString() },
+              { label: 'Total Invoiced', value: new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(Number(manualAR.summary?.total_invoiced || 0)) },
+              { label: 'Amount Paid', value: new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(Number(manualAR.summary?.total_paid || 0)) },
+              { label: 'Balance Due', value: new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(Number(manualAR.summary?.balance_due || 0)), highlight: true },
+            ].map(item => (
+              <div key={item.label} className={`stat-card ${item.highlight ? 'border-brand-gold/40' : ''}`}>
+                <span className="label">{item.label}</span>
+                <span className={`font-mono text-sm font-semibold ${item.highlight ? 'text-brand-gold' : 'text-brand-cream'}`}>{item.value}</span>
+              </div>
+            ))}
+          </div>
+          <div className="mt-4 overflow-x-auto">
+            <table className="ops-table">
+              <thead>
+                <tr>
+                  <th>Cust ID</th>
+                  <th>Customer</th>
+                  <th>Lot #</th>
+                  <th>R #</th>
+                  <th>Inv Date</th>
+                  <th className="text-right">Total Inv</th>
+                  <th className="text-right">Paid</th>
+                  <th className="text-right">Balance</th>
+                  <th>Memo</th>
+                </tr>
+              </thead>
+              <tbody>
+                {manualAR.entries.map(entry => (
+                  <tr key={entry.id}>
+                    <td className="font-mono text-brand-sage">{entry.customer_code}</td>
+                    <td>{entry.customer_name || ''}</td>
+                    <td className="font-mono">{entry.lot_no || ''}</td>
+                    <td className="font-mono">{entry.r_no || ''}</td>
+                    <td>{entry.inv_date ? new Date(entry.inv_date).toLocaleDateString() : ''}</td>
+                    <td className="text-right font-mono">{new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(Number(entry.total_invoiced || 0))}</td>
+                    <td className="text-right font-mono text-brand-sage">{new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(Number(entry.amount_paid || 0))}</td>
+                    <td className="text-right font-mono text-brand-gold">{new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(Number(entry.balance_due || 0))}</td>
+                    <td className="max-w-sm truncate text-brand-warm/55">{entry.memo || ''}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
+
+      {/* Airtable accounting validation */}
+      <div className="card p-4">
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <div>
+            <h2 className="text-sm font-semibold text-brand-cream">Airtable Accounting View Validation</h2>
+            <p className="text-xs text-brand-sage/55 mt-1">
+              Mirrors the Transaction tab views the accounting team uses: ACCTG - BAL AR INV 1152 and ACCTG - BAL AR INV 1122.
+            </p>
+          </div>
+          <Link href="/data-explorer?table=tblfNYrQKvtOwslbr" className="btn-secondary text-xs py-1.5">
+            Open Transactions Mirror
+          </Link>
+        </div>
+
+        {mirrorError && (
+          <div className="mt-3 text-xs text-brand-gold">
+            Mirror totals are waiting on the Airtable mirror migration/sync: {mirrorError}
+          </div>
+        )}
+
+        {mirrorSummary && (
+          <>
+            <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mt-4">
+              {[
+                { label: 'Synced Transactions', value: mirrorSummary.transactionRecordCount.toLocaleString(), tone: 'text-brand-cream' },
+                { label: '1152 View Invoiced', value: new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(mirrorSummary.invoicedFromViews), tone: 'text-brand-gold' },
+                { label: '1122 View Paid', value: new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(mirrorSummary.paidFromViews), tone: 'text-brand-sage' },
+                { label: 'View Balance', value: new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(mirrorSummary.balanceFromViews), tone: 'text-brand-cream' },
+                { label: '1152 / 1122 Records', value: `${mirrorSummary.ar1152RecordCount.toLocaleString()} / ${mirrorSummary.paid1122RecordCount.toLocaleString()}`, tone: 'text-brand-cream' },
+              ].map(item => (
+                <div key={item.label} className="stat-card">
+                  <span className="label">{item.label}</span>
+                  <span className={`font-mono text-sm font-semibold ${item.tone}`}>{item.value}</span>
+                </div>
+              ))}
+            </div>
+
+            {mirrorSummary.viewStats.length > 0 && (
+              <div className="mt-4 overflow-x-auto">
+                <table className="ops-table">
+                  <thead>
+                    <tr>
+                      <th>Accounting View</th>
+                      <th className="text-right">Records</th>
+                      <th className="text-right">Debit Total</th>
+                      <th className="text-right">Credit Total</th>
+                      <th>Last Synced</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {mirrorSummary.viewStats.map(view => (
+                      <tr key={view.viewName}>
+                        <td className="text-brand-cream">{view.viewName}</td>
+                        <td className="text-right font-mono">{view.recordCount.toLocaleString()}</td>
+                        <td className="text-right font-mono">{new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(view.debitTotal)}</td>
+                        <td className="text-right font-mono">{new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(view.creditTotal)}</td>
+                        <td className="text-brand-warm/50">{view.lastSyncedAt ? new Date(view.lastSyncedAt).toLocaleString() : 'Never'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </>
+        )}
+      </div>
 
       {/* Filters */}
       <div className="card p-3 flex items-center gap-4 flex-wrap">

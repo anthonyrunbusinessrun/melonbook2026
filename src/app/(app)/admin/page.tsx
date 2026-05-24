@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 import { query } from '@/db';
 import { Users, Shield, Activity, Clock, CheckCircle, XCircle } from 'lucide-react';
+import { UserCreateForm } from './UserCreateForm';
 
 export default async function AdminPage() {
   const [users, auditLog, syncStats] = await Promise.allSettled([
@@ -26,6 +27,7 @@ export default async function AdminPage() {
 
   const roleColors: Record<string, string> = {
     admin: 'badge-red',
+    user: 'badge-green',
     accounting: 'badge-gold',
     sales_logistics: 'badge-green',
     readonly: 'badge-gray',
@@ -37,6 +39,8 @@ export default async function AdminPage() {
         <h1 className="font-display text-3xl font-semibold text-brand-cream">Admin</h1>
         <p className="text-brand-sage/60 text-sm">User management, audit log, system health</p>
       </div>
+
+      <UserCreateForm />
 
       {/* Users */}
       <div className="card">
@@ -95,7 +99,7 @@ export default async function AdminPage() {
           </div>
           <div className="space-y-2 text-xs">
             {[
-              { label: 'App', value: 'MelonOps v1.0.0' },
+              { label: 'App', value: 'MelonBook v1.0.0' },
               { label: 'Airtable Base', value: 'appmnU55C5f7A50U4' },
               { label: 'Environment', value: process.env.NODE_ENV || 'unknown' },
               { label: 'Database', value: process.env.DATABASE_URL ? '✓ Configured' : '✗ Missing' },

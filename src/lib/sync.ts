@@ -1,6 +1,6 @@
 /**
  * Airtable ↔ Postgres Bidirectional Sync Engine
- * Melonbook™ 2026 base: appmnU55C5f7A50U4
+ * MelonBook™ 2026 base: appmnU55C5f7A50U4
  */
 
 import { query, queryOne, transaction } from '@/db';
@@ -647,7 +647,3 @@ export async function reconcileAR(): Promise<{
 
   return { pgInvoiced, pgPaid, pgBalance, anomalies };
 }
-
-// Export retry for use by airtable-mirror
-
-export { withRetry as withRetryPublic };

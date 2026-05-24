@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 /**
- * MelonOps Background Worker
+ * MelonBook Background Worker
  * Runs scheduled jobs: sync, reconciliation, anomaly detection
  */
 
-console.log('[Worker] MelonOps Background Worker starting...');
+console.log('[Worker] MelonBook Background Worker starting...');
 console.log(`[Worker] Environment: ${process.env.NODE_ENV || 'development'}`);
 
 const APP_URL = process.env.INTERNAL_API_BASE_URL || process.env.NEXTAUTH_URL;
@@ -21,7 +21,11 @@ if (!INTERNAL_API_TOKEN) {
 }
 
 async function callSyncEndpoint(type) {
-  const response = await fetch(`${APP_URL.replace(/\/$/, '')}/api/sync/${type}`, {
+  return callInternalEndpoint(`/api/sync/${type}`, type);
+}
+
+async function callInternalEndpoint(path, label) {
+  const response = await fetch(`${APP_URL.replace(/\/$/, '')}${path}`, {
     method: 'POST',
     headers: {
       'content-type': 'application/json',
@@ -38,7 +42,7 @@ async function callSyncEndpoint(type) {
   }
 
   if (!response.ok) {
-    throw new Error(`${type} failed with ${response.status}: ${JSON.stringify(payload)}`);
+    throw new Error(`${label} failed with ${response.status}: ${JSON.stringify(payload)}`);
   }
 
   return payload.result ?? payload;
@@ -84,6 +88,19 @@ async function runReconcileJob() {
   }
 }
 
+async function runAirtableMirrorJob() {
+  console.log('[Job] Starting full Airtable mirror sync...');
+  const start = Date.now();
+  try {
+    const results = await callInternalEndpoint('/api/airtable/sync/full', 'airtable mirror');
+    const elapsed = ((Date.now() - start) / 1000).toFixed(1);
+    const tableCount = Array.isArray(results.tables) ? results.tables.length : 0;
+    console.log(`[Job] Airtable mirror complete in ${elapsed}s across ${tableCount} tables`);
+  } catch (e) {
+    console.error('[Job] Airtable mirror failed:', e.message);
+  }
+}
+
 // ============================================================
 // SCHEDULE
 // ============================================================
@@ -96,13 +113,12 @@ setInterval(runSyncJob, 15 * 60 * 1000);
 // Nightly reconciliation: every 6 hours
 setInterval(runReconcileJob, 6 * 60 * 60 * 1000);
 
-// Run mirror sync every 4 hours
-setInterval(runMirrorSyncJob, 4 * 60 * 60 * 1000);
-// Initial mirror sync after 2 min startup delay
-setTimeout(runMirrorSyncJob, 2 * 60 * 1000);
+// Raw Airtable mirror: every 4 hours
+setInterval(runAirtableMirrorJob, 4 * 60 * 60 * 1000);
 
 // Initial run on startup
 setTimeout(async () => {
+  await runAirtableMirrorJob();
   await runSyncJob();
   await runReconcileJob();
 }, 5000);
@@ -110,6 +126,7 @@ setTimeout(async () => {
 console.log('[Worker] Scheduled jobs:');
 console.log('  - Outbox processor: every 30 seconds');
 console.log('  - Full sync: every 15 minutes');
+console.log('  - Full Airtable mirror: every 4 hours');
 console.log('  - AR reconciliation: every 6 hours');
 
 // Keep process alive
@@ -121,32 +138,3 @@ process.on('SIGTERM', () => {
 process.on('uncaughtException', (err) => {
   console.error('[Worker] Uncaught exception:', err);
 });
-
-// ============================================================
-// MIRROR SYNC JOB — syncs raw records from all Airtable tables
-// ============================================================
-async function runMirrorSyncJob() {
-  console.log('[Job] Running Airtable mirror sync...');
-  const start = Date.now();
-  try {
-    const response = await fetch(`${APP_URL.replace(/\/$/, '')}/api/airtable/sync/full`, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        'x-internal-token': INTERNAL_API_TOKEN,
-      },
-    });
-    const data = await response.json().catch(() => ({}));
-    const elapsed = ((Date.now() - start) / 1000).toFixed(1);
-    if (response.ok) {
-      const tableResults = Object.entries(data.tables || {})
-        .map(([t, r]) => `${t}:${r.synced}`)
-        .join(', ');
-      console.log(`[Job] Mirror sync done in ${elapsed}s — ${tableResults}`);
-    } else {
-      console.error(`[Job] Mirror sync failed: ${JSON.stringify(data)}`);
-    }
-  } catch (e) {
-    console.error('[Job] Mirror sync error:', e.message);
-  }
-}

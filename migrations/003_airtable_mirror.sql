@@ -1,70 +1,85 @@
--- Migration 003: Airtable raw record mirror + schema cache + sync status
+-- Raw Airtable mirror layer.
+-- This preserves every Airtable table, field, view, and record even when the
+-- normalized MelonBook schema does not yet map a field.
 
--- Raw record mirror (stores ALL Airtable records from ALL tables)
+CREATE EXTENSION IF NOT EXISTS "pg_trgm";
+
+CREATE TABLE IF NOT EXISTS airtable_tables (
+  base_id           TEXT NOT NULL,
+  table_id          TEXT PRIMARY KEY,
+  table_name        TEXT NOT NULL,
+  primary_field_id  TEXT,
+  description       TEXT,
+  raw_schema        JSONB NOT NULL DEFAULT '{}'::jsonb,
+  last_synced_at    TIMESTAMPTZ,
+  created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS airtable_fields (
+  base_id         TEXT NOT NULL,
+  table_id        TEXT NOT NULL REFERENCES airtable_tables(table_id) ON DELETE CASCADE,
+  field_id        TEXT NOT NULL,
+  field_name      TEXT NOT NULL,
+  field_type      TEXT NOT NULL,
+  field_options   JSONB NOT NULL DEFAULT '{}'::jsonb,
+  raw_schema      JSONB NOT NULL DEFAULT '{}'::jsonb,
+  last_synced_at  TIMESTAMPTZ,
+  PRIMARY KEY (table_id, field_id)
+);
+CREATE INDEX IF NOT EXISTS idx_airtable_fields_table ON airtable_fields(table_id, field_name);
+
+CREATE TABLE IF NOT EXISTS airtable_views (
+  base_id         TEXT NOT NULL,
+  table_id        TEXT NOT NULL REFERENCES airtable_tables(table_id) ON DELETE CASCADE,
+  view_id         TEXT NOT NULL,
+  view_name       TEXT NOT NULL,
+  view_type       TEXT,
+  raw_schema      JSONB NOT NULL DEFAULT '{}'::jsonb,
+  last_synced_at  TIMESTAMPTZ,
+  PRIMARY KEY (table_id, view_id)
+);
+CREATE INDEX IF NOT EXISTS idx_airtable_views_table ON airtable_views(table_id, view_name);
+
 CREATE TABLE IF NOT EXISTS airtable_records (
-  id                  UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  base_id             TEXT NOT NULL DEFAULT 'appmnU55C5f7A50U4',
-  table_id            TEXT NOT NULL,
-  table_name          TEXT NOT NULL,
-  airtable_record_id  TEXT NOT NULL,
+  base_id             TEXT NOT NULL,
+  table_id            TEXT NOT NULL REFERENCES airtable_tables(table_id) ON DELETE CASCADE,
+  record_id           TEXT NOT NULL,
   created_time        TIMESTAMPTZ,
-  raw_fields          JSONB NOT NULL DEFAULT '{}',
-  searchable_text     TEXT GENERATED ALWAYS AS (
-    substring(raw_fields::text, 1, 10000)
-  ) STORED,
+  last_modified_time  TIMESTAMPTZ,
+  raw_fields          JSONB NOT NULL DEFAULT '{}'::jsonb,
+  searchable_text     TEXT NOT NULL DEFAULT '',
   last_synced_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   sync_error          TEXT,
-  UNIQUE(table_id, airtable_record_id)
+  PRIMARY KEY (table_id, record_id)
 );
+CREATE INDEX IF NOT EXISTS idx_airtable_records_table ON airtable_records(table_id, last_synced_at DESC);
+CREATE INDEX IF NOT EXISTS idx_airtable_records_search ON airtable_records USING gin (searchable_text gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_airtable_records_raw ON airtable_records USING gin (raw_fields);
 
-CREATE INDEX IF NOT EXISTS idx_airtable_records_table_id ON airtable_records(table_id);
-CREATE INDEX IF NOT EXISTS idx_airtable_records_at_id ON airtable_records(airtable_record_id);
-CREATE INDEX IF NOT EXISTS idx_airtable_records_synced ON airtable_records(last_synced_at DESC);
-CREATE INDEX IF NOT EXISTS idx_airtable_records_search ON airtable_records USING gin(raw_fields);
-
--- Table/view schema cache
-CREATE TABLE IF NOT EXISTS airtable_schema_cache (
-  id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  base_id     TEXT NOT NULL DEFAULT 'appmnU55C5f7A50U4',
-  table_id    TEXT NOT NULL,
-  table_name  TEXT NOT NULL,
-  fields      JSONB NOT NULL DEFAULT '[]',
-  views       JSONB NOT NULL DEFAULT '[]',
-  record_count INTEGER,
-  cached_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  UNIQUE(base_id, table_id)
-);
-
--- Per-table sync status tracking
 CREATE TABLE IF NOT EXISTS airtable_sync_status (
-  id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  table_id        TEXT NOT NULL UNIQUE,
-  table_name      TEXT NOT NULL,
-  airtable_count  INTEGER,
-  mirrored_count  INTEGER,
-  last_synced_at  TIMESTAMPTZ,
-  sync_started_at TIMESTAMPTZ,
-  status          TEXT NOT NULL DEFAULT 'idle' CHECK (status IN ('idle','running','done','error')),
-  error_message   TEXT,
-  duration_ms     INTEGER
+  base_id            TEXT NOT NULL,
+  table_id           TEXT NOT NULL PRIMARY KEY,
+  table_name         TEXT NOT NULL,
+  schema_synced_at   TIMESTAMPTZ,
+  records_synced_at  TIMESTAMPTZ,
+  record_count       INTEGER NOT NULL DEFAULT 0,
+  last_started_at    TIMESTAMPTZ,
+  last_completed_at  TIMESTAMPTZ,
+  status             TEXT NOT NULL DEFAULT 'pending',
+  sync_error         TEXT,
+  updated_at         TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- Upsert initial status rows for all known tables
-INSERT INTO airtable_sync_status (table_id, table_name) VALUES
-  ('tblfNYrQKvtOwslbr', 'Transactions'),
-  ('tblqy4XXa2ap3g66T', 'Contacts'),
-  ('tblxvWCSHdMKiOa56', 'Folios'),
-  ('tblUYAd8KBsZi97Pu', 'Vouchers'),
-  ('tblmt7JoM80l0vO5I', 'Accounts'),
-  ('tblIdxdCej9QvdirO', 'Batches'),
-  ('tblOarNFTnDsSaO75', 'Items'),
-  ('tbllwqsWIRSTKIVFf', 'Attachments'),
-  ('tbl4vy605bt4KPDgA', 'Forms')
-ON CONFLICT (table_id) DO NOTHING;
-
--- Add theme preference to app_users
-ALTER TABLE app_users ADD COLUMN IF NOT EXISTS theme TEXT DEFAULT 'dark';
-
-COMMENT ON TABLE airtable_records IS 'Full raw mirror of all Airtable records across all tables';
-COMMENT ON TABLE airtable_schema_cache IS 'Cached Airtable table/field/view schema from Metadata API';
-COMMENT ON TABLE airtable_sync_status IS 'Per-table sync progress and status tracking';
+CREATE TABLE IF NOT EXISTS airtable_view_stats (
+  base_id         TEXT NOT NULL,
+  table_id        TEXT NOT NULL,
+  view_id         TEXT NOT NULL,
+  view_name       TEXT NOT NULL,
+  record_count    INTEGER NOT NULL DEFAULT 0,
+  debit_total     NUMERIC(14,2) NOT NULL DEFAULT 0,
+  credit_total    NUMERIC(14,2) NOT NULL DEFAULT 0,
+  last_synced_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  sync_error      TEXT,
+  PRIMARY KEY (table_id, view_id)
+);

@@ -53,7 +53,7 @@ export const authOptions: NextAuthOptions = {
   },
   pages: { signIn: '/login' },
   session: { strategy: 'jwt', maxAge: 8 * 60 * 60 },
-  secret: nextAuthSecret || 'melonops-dev-secret-change-in-production',
+  secret: nextAuthSecret || 'melonbook-dev-secret-change-in-production',
 };
 
 export const { handlers, signIn, signOut, auth } = NextAuth(authOptions);

@@ -21,14 +21,18 @@ function requirePassword(envName) {
   throw new Error(`${envName} is required`);
 }
 
-const USERS = [
-  {
+const USERS = [];
+
+if (process.env.INITIAL_ADMIN_PASSWORD) {
+  USERS.push({
     email: process.env.INITIAL_ADMIN_EMAIL || 'admin@raymonjland.com',
     name: process.env.INITIAL_ADMIN_NAME || 'System Admin',
     role: 'admin',
     password: requirePassword('INITIAL_ADMIN_PASSWORD'),
-  },
-];
+  });
+} else {
+  console.log('ℹ INITIAL_ADMIN_PASSWORD not set; skipping app user seed for this service.');
+}
 
 if (process.env.INITIAL_ACCOUNTING_PASSWORD) {
   USERS.push({
@@ -36,6 +40,15 @@ if (process.env.INITIAL_ACCOUNTING_PASSWORD) {
     name: 'Accounting',
     role: 'accounting',
     password: requirePassword('INITIAL_ACCOUNTING_PASSWORD'),
+  });
+}
+
+if (process.env.INITIAL_USER_PASSWORD) {
+  USERS.push({
+    email: process.env.INITIAL_USER_EMAIL || 'user@raymonjland.com',
+    name: process.env.INITIAL_USER_NAME || 'Staff User',
+    role: 'user',
+    password: requirePassword('INITIAL_USER_PASSWORD'),
   });
 }
 
