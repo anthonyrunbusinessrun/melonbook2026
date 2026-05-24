@@ -8,17 +8,19 @@ import {
   RefreshCw, Settings, ChevronLeft, ChevronRight,
   Truck, Package, AlertTriangle, Database, Moon, Sun,
   LogOut, UserRoundCheck, FilePlus2,
+  ClipboardList,
 } from 'lucide-react';
 
 const nav = [
   { href: '/dashboard',    icon: LayoutDashboard, label: 'Dashboard',      group: 'main' },
   { href: '/ar-report',    icon: FileText,         label: 'AR Report',      group: 'main' },
   { href: '/ar-input',     icon: FilePlus2,        label: 'AR Input',       group: 'main' },
+  { href: '/vouchers',     icon: ClipboardList,    label: 'Vouchers',       group: 'main' },
   { href: '/transactions', icon: ArrowLeftRight,   label: 'Transactions',   group: 'main' },
   { href: '/customers',    icon: Users,            label: 'Customers',      group: 'main' },
   { href: '/data-explorer', icon: Database,        label: 'Data Explorer',  group: 'main' },
   { href: '/loads',        icon: Truck,            label: 'Loads / Folios', group: 'ops'  },
-  { href: '/products',     icon: Package,          label: 'Products',       group: 'ops'  },
+  { href: '/inventory',    icon: Package,          label: 'Inventory',      group: 'ops'  },
   { href: '/anomalies',    icon: AlertTriangle,    label: 'Anomalies',      group: 'ops'  },
   { href: '/sync',         icon: RefreshCw,        label: 'Sync Center',    group: 'admin'},
   { href: '/admin',        icon: Settings,         label: 'Admin',          group: 'admin'},
