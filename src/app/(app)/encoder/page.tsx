@@ -1,6 +1,7 @@
 'use client';
 import { useState } from 'react';
-import { Zap, FileText, Plus, CheckCircle, AlertCircle, Copy, RefreshCw, ChevronDown, ChevronUp } from 'lucide-react';
+import Link from 'next/link';
+import { Zap, FileText, Plus, CheckCircle, AlertCircle, Copy, RefreshCw, ChevronDown, ChevronUp, Loader2 } from 'lucide-react';
 
 const ACCOUNTS = [
   { code: 'LWS-1152', no: '1152', name: 'Accounts Receivable', type: 'Asset', df: 'Dr' },
@@ -106,6 +107,8 @@ export default function EncoderPage() {
   const [batchMode, setBatchMode] = useState(false);
   const [batchText, setBatchText] = useState('');
   const [batchResult, setBatchResult] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState('');
+  const [saving, setSaving] = useState(false);
 
   const tpl = TEMPLATES.find(t => t.id === activeTemplate);
   const vals = activeTemplate ? (formVals[activeTemplate] || {}) : {};
@@ -118,12 +121,64 @@ export default function EncoderPage() {
     setFormVals(prev => ({ ...prev, [activeTemplate]: { ...(prev[activeTemplate] || {}), [key]: value } }));
   }
 
-  function handleSubmit() {
+  async function handleSubmit() {
     if (!activeTemplate || !tpl) return;
-    // In real impl: POST to /api/airtable/sync/create-record
-    setSubmitted(prev => [...prev, `${tpl.name} — ${vals.amount ? '$' + parseFloat(vals.amount).toFixed(2) : ''} — ${new Date().toLocaleTimeString()}`]);
-    setFormVals(prev => ({ ...prev, [activeTemplate]: {} }));
-    alert('✅ Entry queued! In production this will be posted directly to Airtable via API. Connect your Airtable write token in Settings.');
+    setSaveError('');
+
+    if (!vals.customer && activeTemplate !== 'freight_cost') {
+      setSaveError('Customer code is required before saving an AR draft.');
+      return;
+    }
+
+    if (activeTemplate === 'freight_cost') {
+      setSubmitted(prev => [
+        ...prev,
+        `${tpl.name} preview prepared — ${vals.amount ? '$' + parseFloat(vals.amount).toFixed(2) : ''} — ${new Date().toLocaleTimeString()}`,
+      ]);
+      setFormVals(prev => ({ ...prev, [activeTemplate]: {} }));
+      return;
+    }
+
+    const payload = activeTemplate === 'ar_invoice'
+      ? {
+          entryStatus: 'draft',
+          customerCode: vals.customer,
+          lotNo: vals.folio,
+          rNo: vals.ref1,
+          invDate: vals.date,
+          invoiced: vals.amount,
+          memo: vals.memo || `Encoder Station invoice ${vals.ref1 || ''}`.trim(),
+        }
+      : {
+          entryStatus: 'draft',
+          customerCode: vals.customer,
+          rNo: vals.ref1,
+          depDate: vals.date,
+          check1: vals.checkNo,
+          amountPaid: vals.amount,
+          memo: `Encoder Station payment ${vals.checkNo || vals.ref1 || ''}`.trim(),
+        };
+
+    setSaving(true);
+    try {
+      const response = await fetch('/api/ar/manual', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Could not save AR draft.');
+
+      setSubmitted(prev => [
+        ...prev,
+        `${tpl.name} draft saved — ${vals.customer} — ${vals.amount ? '$' + parseFloat(vals.amount).toFixed(2) : ''} — ${new Date().toLocaleTimeString()}`,
+      ]);
+      setFormVals(prev => ({ ...prev, [activeTemplate]: {} }));
+    } catch (error) {
+      setSaveError((error as Error).message);
+    } finally {
+      setSaving(false);
+    }
   }
 
   function copyAirtableUrl() {
@@ -157,6 +212,9 @@ export default function EncoderPage() {
           </p>
         </div>
         <div className="flex gap-2">
+          <Link href="/ar-input" className="btn-gold text-xs py-1.5 flex items-center gap-1">
+            <Plus size={12} /> AR Input
+          </Link>
           <button
             onClick={() => setBatchMode(!batchMode)}
             className="btn-secondary text-xs py-1.5 flex items-center gap-1"
@@ -236,13 +294,20 @@ export default function EncoderPage() {
             </div>
           )}
 
+          {saveError && (
+            <div className="flex items-center gap-2 rounded border border-brand-red/30 bg-brand-red/10 px-3 py-2 text-brand-brightred text-xs">
+              <AlertCircle size={12} /> {saveError}
+            </div>
+          )}
+
           <div className="flex gap-2">
             <button
               onClick={handleSubmit}
-              disabled={!vals.amount || !isBalanced}
+              disabled={saving || !vals.amount || !isBalanced}
               className="btn-primary flex items-center gap-2 disabled:opacity-40"
             >
-              <Plus size={14} /> Post to Airtable
+              {saving ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
+              {activeTemplate === 'freight_cost' ? 'Prepare Preview' : 'Save AR Draft'}
             </button>
             <button
               onClick={() => setFormVals(prev => ({ ...prev, [tpl.id]: {} }))}
@@ -283,9 +348,9 @@ export default function EncoderPage() {
               <pre className="text-xs text-brand-cream/70 overflow-auto max-h-48">{batchResult}</pre>
               <button
                 className="btn-gold mt-3 flex items-center gap-2 text-sm"
-                onClick={() => alert(`✅ ${batchResult.split('\n').length} entries ready to post. Connect write permissions in Settings → Airtable API to enable actual posting.`)}
+                onClick={() => alert(`${batchResult.split('\n').length} entries parsed. Use AR Input for saved drafts, or paste these reviewed rows into Airtable when ready.`)}
               >
-                <CheckCircle size={14} /> Confirm & Post All to Airtable
+                <CheckCircle size={14} /> Mark Batch Reviewed
               </button>
             </div>
           )}
@@ -308,11 +373,11 @@ export default function EncoderPage() {
       </div>
 
       <div className="card p-4 text-center border-brand-gold/20">
-        <p className="text-sm text-brand-cream mb-2">🔗 Need write access to post directly to Airtable?</p>
+        <p className="text-sm text-brand-cream mb-2">Need a faster path for repetitive accounting entry?</p>
         <p className="text-xs text-brand-sage/60 mb-3">
-          Go to Settings → Airtable API to connect a write-enabled token. Encoders can then post transactions directly without leaving this app.
+          AR invoice and payment templates save draft AR rows to PostgreSQL. Use the full AR Input page for spreadsheet-style detail entry and review.
         </p>
-        <a href="/admin" className="btn-secondary text-sm">Settings →</a>
+        <Link href="/ar-input" className="btn-secondary text-sm">Open AR Input</Link>
       </div>
     </div>
   );
