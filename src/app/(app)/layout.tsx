@@ -44,7 +44,7 @@ const nav = [
   { href: '/items',         icon: ShoppingCart,    label: 'Items',           group: 'ops' },
   { href: '/forms-list',    icon: Layout,          label: 'Forms',           group: 'ops' },
   { href: '/encoder',       icon: Zap,             label: 'Encoder Station', group: 'tools' },
-  { href: '/data-explorer', icon: Database,        label: 'Data Explorer',   group: 'tools' },
+  { href: '/data-explorer', icon: Database,        label: 'Airtable Grid',   group: 'tools' },
   { href: '/anomalies',     icon: AlertTriangle,   label: 'Anomalies',       group: 'tools' },
   { href: '/sync',          icon: RefreshCw,       label: 'Sync Center',     group: 'system' },
   { href: '/admin',         icon: Settings,        label: 'Admin',           group: 'system' },
@@ -190,6 +190,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             <Link href="/ar-input" className="btn-gold h-8 px-3 text-xs inline-flex items-center gap-1.5">
               <FilePlus2 size={13} />
               AR Input
+            </Link>
+            <Link href="/data-explorer" className="btn-secondary h-8 px-3 text-xs inline-flex items-center gap-1.5">
+              <Database size={13} />
+              Airtable Grid
             </Link>
             <Link href="/encoder" className="btn-secondary h-8 px-3 text-xs inline-flex items-center gap-1.5">
               <Zap size={13} />

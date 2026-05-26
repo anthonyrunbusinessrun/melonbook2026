@@ -46,6 +46,12 @@ type AirtableListResponse = {
   offset?: string;
 };
 
+export type AirtableRecordFilter = {
+  field: string;
+  op: 'contains' | 'not_contains' | 'equals' | 'not_equals' | 'blank' | 'not_blank' | 'gt' | 'gte' | 'lt' | 'lte';
+  value?: string;
+};
+
 function requireAirtableKey() {
   if (!AIRTABLE_API_KEY) {
     throw new Error('AIRTABLE_API_KEY is required for Airtable sync');
@@ -156,6 +162,77 @@ async function upsertAirtableRecordBatch(tableId: string, records: AirtableRecor
   ]);
 
   return records.length;
+}
+
+async function refreshAirtableMirrorCount(tableId: string) {
+  const count = await queryOne<{ count: string }>(
+    'SELECT COUNT(*)::text as count FROM airtable_records WHERE table_id = $1',
+    [tableId]
+  );
+
+  await query(`
+    UPDATE airtable_sync_status
+    SET record_count = $2,
+        records_synced_at = NOW(),
+        last_completed_at = NOW(),
+        status = 'ok',
+        sync_error = NULL,
+        updated_at = NOW()
+    WHERE table_id = $1
+  `, [tableId, Number(count?.count || 0)]);
+}
+
+function appendRecordFilters(
+  filters: AirtableRecordFilter[] | undefined,
+  params: unknown[],
+  whereParts: string[]
+) {
+  for (const filter of filters || []) {
+    const field = filter.field?.trim();
+    if (!field) continue;
+
+    params.push(field);
+    const fieldParam = `$${params.length}`;
+    const fieldText = `COALESCE(raw_fields ->> ${fieldParam}, '')`;
+
+    if (filter.op === 'blank') {
+      whereParts.push(`${fieldText} = ''`);
+      continue;
+    }
+
+    if (filter.op === 'not_blank') {
+      whereParts.push(`${fieldText} <> ''`);
+      continue;
+    }
+
+    const value = String(filter.value ?? '').trim();
+    if (!value) continue;
+
+    if (['gt', 'gte', 'lt', 'lte'].includes(filter.op)) {
+      const parsed = Number(value.replace(/[$,]/g, ''));
+      if (!Number.isFinite(parsed)) continue;
+
+      params.push(parsed);
+      const valueParam = `$${params.length}`;
+      const numericField = `CASE WHEN ${fieldText} ~ '^-?[0-9,]+(\\.[0-9]+)?$' THEN REPLACE(${fieldText}, ',', '')::numeric ELSE NULL END`;
+      const operator = filter.op === 'gt' ? '>' : filter.op === 'gte' ? '>=' : filter.op === 'lt' ? '<' : '<=';
+      whereParts.push(`${numericField} ${operator} ${valueParam}`);
+      continue;
+    }
+
+    params.push(filter.op.includes('contains') ? `%${value}%` : value);
+    const valueParam = `$${params.length}`;
+
+    if (filter.op === 'contains') {
+      whereParts.push(`${fieldText} ILIKE ${valueParam}`);
+    } else if (filter.op === 'not_contains') {
+      whereParts.push(`${fieldText} NOT ILIKE ${valueParam}`);
+    } else if (filter.op === 'equals') {
+      whereParts.push(`LOWER(${fieldText}) = LOWER(${valueParam})`);
+    } else if (filter.op === 'not_equals') {
+      whereParts.push(`LOWER(${fieldText}) <> LOWER(${valueParam})`);
+    }
+  }
 }
 
 async function fetchMetadata(): Promise<AirtableMetaTable[]> {
@@ -420,6 +497,7 @@ export async function getAirtableTables(): Promise<AirtableTableInfo[]> {
 export async function getAirtableRecords(options: {
   tableId: string;
   search?: string;
+  filters?: AirtableRecordFilter[];
   page?: number;
   pageSize?: number;
 }) {
@@ -429,10 +507,17 @@ export async function getAirtableRecords(options: {
   const search = options.search?.trim();
   const params: unknown[] = [options.tableId];
   let where = 'WHERE table_id = $1';
+  const whereParts: string[] = [];
 
   if (search) {
     params.push(`%${search}%`);
-    where += ` AND searchable_text ILIKE $${params.length}`;
+    whereParts.push(`searchable_text ILIKE $${params.length}`);
+  }
+
+  appendRecordFilters(options.filters, params, whereParts);
+
+  if (whereParts.length > 0) {
+    where += ` AND ${whereParts.join(' AND ')}`;
   }
 
   const countRows = await query<{ count: string }>(
@@ -446,7 +531,7 @@ export async function getAirtableRecords(options: {
     raw_fields: Record<string, unknown>;
     last_synced_at: string;
   }>(`
-    SELECT record_id, created_time, raw_fields, last_synced_at
+    SELECT record_id, created_time::text as created_time, raw_fields, last_synced_at::text as last_synced_at
     FROM airtable_records
     ${where}
     ORDER BY created_time DESC NULLS LAST, record_id
@@ -459,6 +544,57 @@ export async function getAirtableRecords(options: {
     pageSize,
     total: Number(countRows[0]?.count || 0),
   };
+}
+
+export async function createAirtableRecord(tableId: string, fields: Record<string, unknown>) {
+  const result = await airtableFetch<{ records: AirtableRecord[] }>(
+    `${AIRTABLE_BASE_URL}/${AIRTABLE_BASE_ID}/${tableId}`,
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        records: [{ fields }],
+        typecast: true,
+      }),
+    }
+  );
+
+  const record = result.records[0];
+  if (!record) throw new Error('Airtable did not return the created record');
+
+  await upsertAirtableRecordBatch(tableId, [record]);
+  await refreshAirtableMirrorCount(tableId);
+  return record;
+}
+
+export async function updateAirtableRecord(tableId: string, recordId: string, fields: Record<string, unknown>) {
+  const result = await airtableFetch<{ records: AirtableRecord[] }>(
+    `${AIRTABLE_BASE_URL}/${AIRTABLE_BASE_ID}/${tableId}`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify({
+        records: [{ id: recordId, fields }],
+        typecast: true,
+      }),
+    }
+  );
+
+  const record = result.records[0];
+  if (!record) throw new Error('Airtable did not return the updated record');
+
+  await upsertAirtableRecordBatch(tableId, [record]);
+  await refreshAirtableMirrorCount(tableId);
+  return record;
+}
+
+export async function deleteAirtableRecord(tableId: string, recordId: string) {
+  const result = await airtableFetch<{ deleted: boolean; id: string }>(
+    `${AIRTABLE_BASE_URL}/${AIRTABLE_BASE_ID}/${tableId}/${recordId}`,
+    { method: 'DELETE' }
+  );
+
+  await query('DELETE FROM airtable_records WHERE table_id = $1 AND record_id = $2', [tableId, recordId]);
+  await refreshAirtableMirrorCount(tableId);
+  return result;
 }
 
 export async function getAirtableSyncStatus() {
