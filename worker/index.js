@@ -113,8 +113,8 @@ setInterval(runSyncJob, 15 * 60 * 1000);
 // Nightly reconciliation: every 6 hours
 setInterval(runReconcileJob, 6 * 60 * 60 * 1000);
 
-// Raw Airtable mirror: every 4 hours
-setInterval(runAirtableMirrorJob, 4 * 60 * 60 * 1000);
+// Raw Airtable mirror: every 10 minutes as a safety net behind webhooks.
+setInterval(runAirtableMirrorJob, 10 * 60 * 1000);
 
 // Initial run on startup
 setTimeout(async () => {
@@ -126,7 +126,7 @@ setTimeout(async () => {
 console.log('[Worker] Scheduled jobs:');
 console.log('  - Outbox processor: every 30 seconds');
 console.log('  - Full sync: every 15 minutes');
-console.log('  - Full Airtable mirror: every 4 hours');
+console.log('  - Full Airtable mirror safety sync: every 10 minutes');
 console.log('  - AR reconciliation: every 6 hours');
 
 // Keep process alive

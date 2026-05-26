@@ -1,14 +1,19 @@
 export const dynamic = "force-dynamic";
+import { getServerSession } from 'next-auth';
 import { query } from '@/db';
-import { Users, Shield, Activity, Clock, CheckCircle, XCircle } from 'lucide-react';
-import { UserCreateForm } from './UserCreateForm';
+import { Shield, Activity, Clock } from 'lucide-react';
+import { authOptions } from '@/lib/auth';
+import { AdminUsersPanel, type AdminUserRow } from './AdminUsersPanel';
 
 export default async function AdminPage() {
+  const session = await getServerSession(authOptions);
+  const sessionUser = session?.user as { id?: string } | undefined;
+
   const [users, auditLog, syncStats] = await Promise.allSettled([
     query<{
       id: string; email: string; name: string; role: string;
-      is_active: boolean; last_login_at: string; created_at: string;
-    }>('SELECT id, email, name, role, is_active, last_login_at, created_at FROM app_users ORDER BY created_at'),
+      is_active: boolean; last_login_at: string | null; created_at: string; updated_at: string | null;
+    }>('SELECT id, email, name, role, is_active, last_login_at, created_at, updated_at FROM app_users ORDER BY created_at'),
 
     query<{
       user_email: string; action: string; table_name: string;
@@ -25,14 +30,6 @@ export default async function AdminPage() {
   const logs = auditLog.status === 'fulfilled' ? auditLog.value : [];
   const stats = syncStats.status === 'fulfilled' ? syncStats.value : [];
 
-  const roleColors: Record<string, string> = {
-    admin: 'badge-red',
-    user: 'badge-green',
-    accounting: 'badge-gold',
-    sales_logistics: 'badge-green',
-    readonly: 'badge-gray',
-  };
-
   return (
     <div className="p-6 space-y-6">
       <div>
@@ -40,55 +37,7 @@ export default async function AdminPage() {
         <p className="text-brand-sage/60 text-sm">User management, audit log, system health</p>
       </div>
 
-      <UserCreateForm />
-
-      {/* Users */}
-      <div className="card">
-        <div className="px-4 py-3 border-b border-brand-green/20 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Users size={14} className="text-brand-sage" />
-            <h2 className="text-sm font-semibold text-brand-cream">Staff Users</h2>
-          </div>
-          <span className="badge-gray">{appUsers.length} users</span>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="ops-table">
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Email</th>
-                <th>Role</th>
-                <th>Status</th>
-                <th>Last Login</th>
-                <th>Created</th>
-              </tr>
-            </thead>
-            <tbody>
-              {appUsers.map(u => (
-                <tr key={u.id}>
-                  <td className="font-medium text-brand-cream">{u.name}</td>
-                  <td className="font-mono text-brand-warm/70">{u.email}</td>
-                  <td><span className={roleColors[u.role] || 'badge-gray'}>{u.role}</span></td>
-                  <td>
-                    {u.is_active ? (
-                      <span className="flex items-center gap-1 text-brand-sage text-xs"><CheckCircle size={11} /> Active</span>
-                    ) : (
-                      <span className="flex items-center gap-1 text-brand-brightred text-xs"><XCircle size={11} /> Inactive</span>
-                    )}
-                  </td>
-                  <td className="text-brand-warm/50">{u.last_login_at ? new Date(u.last_login_at).toLocaleString() : 'Never'}</td>
-                  <td className="text-brand-warm/40">{new Date(u.created_at).toLocaleDateString()}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        <div className="p-4 border-t border-brand-green/10">
-          <p className="text-xs text-brand-sage/40">
-            To add/modify users, run: <code className="font-mono bg-brand-dark rounded px-1 py-0.5">node scripts/seed.js</code> with updated user list, or use psql directly.
-          </p>
-        </div>
-      </div>
+      <AdminUsersPanel initialUsers={appUsers as AdminUserRow[]} currentUserId={sessionUser?.id} />
 
       {/* System info */}
       <div className="grid grid-cols-2 gap-4">

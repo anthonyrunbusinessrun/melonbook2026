@@ -11,8 +11,16 @@ import {
 } from '@/lib/airtable-mirror';
 
 type FieldInfo = {
+  field_id: string;
   field_name: string;
   field_type: string;
+  field_order: number;
+};
+
+type ViewInfo = {
+  view_id: string;
+  view_name: string;
+  view_type: string | null;
 };
 
 function fmtDate(value: string | null) {
@@ -67,31 +75,50 @@ export default async function DataExplorerPage({
   const page = Math.max(Number(sp.page || 1), 1);
   const q = sp.q || '';
 
-  const fields = selectedTableId
-    ? await query<FieldInfo>(`
-        SELECT field_name, field_type
-        FROM airtable_fields
-        WHERE table_id = $1
-        ORDER BY field_name
-      `, [selectedTableId])
-    : [];
+  const [schemaFields, views] = selectedTableId
+    ? await Promise.all([
+        query<FieldInfo>(`
+          SELECT
+            field.value->>'id' as field_id,
+            field.value->>'name' as field_name,
+            field.value->>'type' as field_type,
+            field.ordinality::int as field_order
+          FROM airtable_tables t
+          CROSS JOIN LATERAL jsonb_array_elements(COALESCE(t.raw_schema->'fields', '[]'::jsonb))
+            WITH ORDINALITY AS field(value, ordinality)
+          WHERE t.table_id = $1
+          ORDER BY field.ordinality
+        `, [selectedTableId]),
+        query<ViewInfo>(`
+          SELECT view_id, view_name, view_type
+          FROM airtable_views
+          WHERE table_id = $1
+          ORDER BY view_name
+        `, [selectedTableId]),
+      ])
+    : [[], []];
+
+  const fields = schemaFields.length > 0
+    ? schemaFields
+    : selectedTableId
+      ? await query<FieldInfo>(`
+          SELECT field_id, field_name, field_type, row_number() OVER (ORDER BY field_name)::int as field_order
+          FROM airtable_fields
+          WHERE table_id = $1
+          ORDER BY field_name
+        `, [selectedTableId])
+      : [];
 
   const data = selectedTableId
     ? await getAirtableRecords({ tableId: selectedTableId, search: q, page, pageSize: 50 })
     : { records: [], page: 1, pageSize: 50, total: 0 };
 
   const firstRecordFields = Object.keys(data.records[0]?.raw_fields || {});
-  const preferredColumns = [
-    'Name', 'Trans #', 'Date', 'Accrue Date', 'Account', 'Account Name',
-    'Debit', 'Credit', 'Balance', 'Customer', 'Issued Contact', 'Lot #',
-    'R #', 'PO #', 'Memo', 'Status',
-  ];
   const allFieldNames = fields.map(field => field.field_name);
   const columns = [
-    ...preferredColumns.filter(name => allFieldNames.includes(name) || firstRecordFields.includes(name)),
-    ...allFieldNames.filter(name => !preferredColumns.includes(name)),
-    ...firstRecordFields.filter(name => !preferredColumns.includes(name) && !allFieldNames.includes(name)),
-  ].slice(0, 14);
+    ...allFieldNames,
+    ...firstRecordFields.filter(name => !allFieldNames.includes(name)),
+  ];
 
   const totalPages = Math.max(Math.ceil(data.total / data.pageSize), 1);
   const syncedCount = tables.reduce((sum, table) => sum + Number(table.record_count || 0), 0);
@@ -179,10 +206,19 @@ export default async function DataExplorerPage({
                 <p className="text-xs text-brand-warm/50 mt-1">
                   {selectedTableId || 'Run schema sync to load Airtable tables.'}
                 </p>
+                {views.length > 0 && (
+                  <div className="mt-3 flex items-center gap-1.5 overflow-x-auto max-w-full pb-1">
+                    {views.map(view => (
+                      <span key={view.view_id} className="badge-gray whitespace-nowrap">
+                        {view.view_name}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
               <div className="text-right text-xs text-brand-warm/50">
                 <div>{data.total.toLocaleString()} matching records</div>
-                <div>{fields.length.toLocaleString()} fields</div>
+                <div>{fields.length.toLocaleString()} Airtable fields</div>
               </div>
             </div>
 
@@ -215,12 +251,19 @@ export default async function DataExplorerPage({
           ) : (
             <div className="card overflow-hidden">
               <div className="overflow-x-auto">
-                <table className="ops-table min-w-full">
+                <table className="ops-table min-w-full border-separate border-spacing-0">
                   <thead>
                     <tr>
-                      <th className="min-w-36">Record ID</th>
+                      <th className="min-w-36 sticky left-0 z-20 bg-brand-dark">Record ID</th>
                       {columns.map(column => (
-                        <th key={column} className="min-w-32">{column}</th>
+                        <th key={column} className="min-w-40 whitespace-nowrap">
+                          <div className="flex flex-col gap-0.5">
+                            <span>{column}</span>
+                            <span className="normal-case tracking-normal text-[9px] text-brand-sage/35">
+                              {fields.find(field => field.field_name === column)?.field_type || 'field'}
+                            </span>
+                          </div>
+                        </th>
                       ))}
                       <th className="min-w-28">Synced</th>
                     </tr>
@@ -228,7 +271,7 @@ export default async function DataExplorerPage({
                   <tbody>
                     {data.records.map(record => (
                       <tr key={record.record_id} className="table-row-hover align-top">
-                        <td className="font-mono text-brand-sage/70">
+                        <td className="font-mono text-brand-sage/70 sticky left-0 z-10 bg-brand-forest">
                           <details>
                             <summary className="cursor-pointer">{record.record_id}</summary>
                             <pre className="mt-2 max-w-xl overflow-auto rounded bg-brand-dark p-3 text-[10px] text-brand-warm/70">
