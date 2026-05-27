@@ -304,6 +304,148 @@ export async function buildARReport(
   return { reportDate: asOfDate, customers, grandTotals };
 }
 
+export async function buildManualARReport(
+  options: {
+    asOfDate?: Date;
+    customerCodes?: string[];
+    includeZeroBalance?: boolean;
+  } = {}
+): Promise<ARReport> {
+  const { asOfDate = new Date(), customerCodes, includeZeroBalance = true } = options;
+  const params: unknown[] = [];
+  const whereParts = [`entry_status <> 'void'`];
+
+  if (customerCodes?.length) {
+    params.push(customerCodes.map(code => code.toUpperCase()));
+    whereParts.push(`customer_code = ANY($${params.length})`);
+  }
+
+  params.push(asOfDate);
+  whereParts.push(`(inv_date IS NULL OR inv_date <= $${params.length})`);
+
+  const rows = await query<{
+    id: string;
+    customer_code: string;
+    customer_name: string | null;
+    division: string | null;
+    lot_no: string | null;
+    r_no: string | null;
+    misc_pas: string | null;
+    po_no: string | null;
+    inv_date: string | null;
+    dep_no: string | null;
+    dep_date: string | null;
+    check1: string | null;
+    check2: string | null;
+    invoiced: string;
+    invoice_credits: string;
+    total_invoiced: string;
+    unloading_fee: string;
+    adjustments: string;
+    amount_paid: string;
+    balance_due: string;
+    memo: string | null;
+  }>(`
+    SELECT
+      id, customer_code, customer_name, division, lot_no, r_no, misc_pas,
+      po_no, inv_date::text, dep_no, dep_date::text, check1, check2,
+      invoiced::text, invoice_credits::text, total_invoiced::text,
+      unloading_fee::text, adjustments::text, amount_paid::text,
+      balance_due::text, memo
+    FROM ar_manual_entries
+    WHERE ${whereParts.join(' AND ')}
+    ORDER BY customer_code, inv_date NULLS LAST, lot_no, r_no, created_at
+  `, params);
+
+  const customerMap = new Map<string, CustomerARTotal>();
+
+  for (const r of rows) {
+    const invoiced = Number(r.invoiced || 0);
+    const invoiceCredits = Number(r.invoice_credits || 0);
+    const totalInvoiced = Number(r.total_invoiced || computeTotalInvoiced(invoiced, invoiceCredits));
+    const unloadingFee = Number(r.unloading_fee || 0);
+    const adjustments = Number(r.adjustments || 0);
+    const amountPaid = Number(r.amount_paid || 0);
+    const balanceDue = Number(r.balance_due || computeBalanceDue(totalInvoiced, unloadingFee, adjustments, amountPaid));
+
+    if (!includeZeroBalance && Math.abs(balanceDue) < 0.01 && Math.abs(invoiced) < 0.01) continue;
+
+    const customerCode = r.customer_code || 'UNKNOWN';
+    const customerName = r.customer_name || customerCode;
+    const arRow: ARRow = {
+      customerId: customerCode,
+      customerCode,
+      customerName,
+      division: r.division,
+      lotNo: r.lot_no,
+      rNo: r.r_no,
+      miscPas: r.misc_pas,
+      poNo: r.po_no,
+      invDate: r.inv_date ? new Date(r.inv_date) : null,
+      depNo: r.dep_no,
+      depDate: r.dep_date ? new Date(r.dep_date) : null,
+      check1: r.check1,
+      check2: r.check2,
+      invoiced,
+      invoiceCredits,
+      totalInvoiced,
+      unloadingFee,
+      adjustments,
+      amountPaid,
+      balanceDue,
+      memo: r.memo,
+      voucherId: r.id,
+      airtableVoucherId: null,
+    };
+
+    if (!customerMap.has(customerCode)) {
+      customerMap.set(customerCode, {
+        customerCode,
+        customerName,
+        invoiced: 0,
+        invoiceCredits: 0,
+        totalInvoiced: 0,
+        unloadingFee: 0,
+        adjustments: 0,
+        amountPaid: 0,
+        balanceDue: 0,
+        rowCount: 0,
+        rows: [],
+      });
+    }
+
+    const customer = customerMap.get(customerCode)!;
+    customer.rows.push(arRow);
+    customer.invoiced += invoiced;
+    customer.invoiceCredits += invoiceCredits;
+    customer.totalInvoiced += totalInvoiced;
+    customer.unloadingFee += unloadingFee;
+    customer.adjustments += adjustments;
+    customer.amountPaid += amountPaid;
+    customer.balanceDue += balanceDue;
+    customer.rowCount++;
+  }
+
+  const customers = Array.from(customerMap.values()).sort((a, b) =>
+    a.customerCode.localeCompare(b.customerCode)
+  );
+
+  const grandTotals = customers.reduce(
+    (acc, customer) => ({
+      invoiced: acc.invoiced + customer.invoiced,
+      invoiceCredits: acc.invoiceCredits + customer.invoiceCredits,
+      totalInvoiced: acc.totalInvoiced + customer.totalInvoiced,
+      unloadingFee: acc.unloadingFee + customer.unloadingFee,
+      adjustments: acc.adjustments + customer.adjustments,
+      amountPaid: acc.amountPaid + customer.amountPaid,
+      balanceDue: acc.balanceDue + customer.balanceDue,
+    }),
+    { invoiced: 0, invoiceCredits: 0, totalInvoiced: 0, unloadingFee: 0, adjustments: 0, amountPaid: 0, balanceDue: 0 }
+  );
+
+  return { reportDate: asOfDate, customers, grandTotals };
+}
+
 // Fallback: build from denormalized voucher amounts when transaction join yields nothing
 async function buildARFromVoucherAmounts(
   options: { customerCodes?: string[]; includeZeroBalance?: boolean }

@@ -66,9 +66,6 @@ export default function LoginPage() {
         {/* Brand header */}
         <div className="text-center mb-8">
           <BrandLogo className="mx-auto h-20 w-72 max-w-full" priority />
-          <p className="text-brand-sage/60 text-sm mt-1">
-            Raymon J Land Internal Operations
-          </p>
         </div>
 
         {/* Login form */}

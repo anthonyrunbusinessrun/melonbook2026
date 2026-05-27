@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { Calculator, CheckCircle, FileSpreadsheet, Loader2, Plus, RefreshCw } from 'lucide-react';
+import { Calculator, CheckCircle, Download, FileSpreadsheet, Loader2, Plus, RefreshCw, UploadCloud } from 'lucide-react';
 
 type ManualEntry = {
   id: string;
@@ -41,6 +41,12 @@ type Summary = {
   total_invoiced: string;
   total_paid: string;
   balance_due: string;
+};
+
+type ImportResult = {
+  sheetName?: string;
+  imported?: number;
+  warnings?: string[];
 };
 
 const initialForm = {
@@ -82,6 +88,9 @@ export default function ARInputPage() {
   const [summary, setSummary] = useState<Summary | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importResult, setImportResult] = useState<ImportResult | null>(null);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
@@ -143,6 +152,41 @@ export default function ARInputPage() {
     }
   }
 
+  async function uploadSpreadsheet(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (!importFile) {
+      setError('Choose a spreadsheet file first.');
+      return;
+    }
+
+    setImporting(true);
+    setError('');
+    setSuccess('');
+    setImportResult(null);
+
+    try {
+      const body = new FormData();
+      body.append('file', importFile);
+
+      const res = await fetch('/api/ar/manual/import', {
+        method: 'POST',
+        body,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Could not import AR spreadsheet');
+
+      setImportResult(data);
+      setSuccess(`Imported ${Number(data.imported || 0).toLocaleString()} AR row(s) from ${data.sheetName || importFile.name}.`);
+      setImportFile(null);
+      e.currentTarget.reset();
+      await loadEntries();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setImporting(false);
+    }
+  }
+
   return (
     <div className="p-6 space-y-5">
       <div className="flex items-start justify-between gap-3 flex-wrap">
@@ -157,6 +201,10 @@ export default function ARInputPage() {
             <RefreshCw size={14} />
             Refresh
           </button>
+          <a href="/api/ar/manual/export/pdf" className="btn-gold flex items-center gap-1.5 text-sm">
+            <Download size={14} />
+            Manual AR PDF
+          </a>
           <Link href="/ar-report" className="btn-secondary flex items-center gap-1.5 text-sm">
             <FileSpreadsheet size={14} />
             AR Report
@@ -177,6 +225,50 @@ export default function ARInputPage() {
           </div>
         ))}
       </div>
+
+      <form onSubmit={uploadSpreadsheet} className="card p-4 space-y-3">
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-2">
+            <UploadCloud size={16} className="text-brand-sage" />
+            <div>
+              <h2 className="text-sm font-semibold text-brand-cream">Import AR Spreadsheet</h2>
+              <p className="text-xs text-brand-sage/55 mt-1">Upload a Google Sheets export or Excel file with the legacy A-S AR columns.</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <input
+              type="file"
+              accept=".xlsx,.xls,.csv"
+              onChange={event => setImportFile(event.target.files?.[0] || null)}
+              className="input h-9 max-w-xs text-xs"
+            />
+            <button
+              type="submit"
+              disabled={importing || !importFile}
+              className="btn-primary h-9 inline-flex items-center gap-1.5"
+            >
+              {importing ? <Loader2 size={14} className="animate-spin" /> : <UploadCloud size={14} />}
+              Import Rows
+            </button>
+          </div>
+        </div>
+
+        {importResult && (
+          <div className="rounded border border-brand-green/20 bg-brand-dark/30 px-3 py-2 text-xs">
+            <div className="text-brand-sage">
+              Imported {Number(importResult.imported || 0).toLocaleString()} row(s)
+              {importResult.sheetName ? ` from ${importResult.sheetName}` : ''}.
+            </div>
+            {importResult.warnings && importResult.warnings.length > 0 && (
+              <div className="mt-2 space-y-1 text-brand-gold">
+                {importResult.warnings.slice(0, 6).map((warning, index) => (
+                  <div key={index}>{warning}</div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </form>
 
       <form onSubmit={submit} className="card p-4 space-y-4">
         <div className="flex items-center justify-between gap-3 border-b border-brand-green/20 pb-3">
