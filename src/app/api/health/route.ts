@@ -1,5 +1,31 @@
 import { NextResponse } from 'next/server';
 import { queryOne } from '@/db';
+import { syncAllAirtableRecords } from '@/lib/airtable-mirror';
+
+declare global {
+  // eslint-disable-next-line no-var
+  var __melonbookAirtableHealthSync: Promise<unknown> | undefined;
+}
+
+function maybeStartAirtableHealthSync(lastSyncedAt: string | null) {
+  if (!process.env.AIRTABLE_API_KEY) return 'missing_airtable_key';
+  if (globalThis.__melonbookAirtableHealthSync) return 'already_running';
+
+  const lastSync = lastSyncedAt ? new Date(lastSyncedAt) : null;
+  const isStale = !lastSync || Number.isNaN(lastSync.getTime()) || Date.now() - lastSync.getTime() > 10 * 60 * 1000;
+  if (!isStale) return 'fresh';
+
+  globalThis.__melonbookAirtableHealthSync = syncAllAirtableRecords()
+    .catch(error => {
+      console.error('[Health Airtable Sync] failed:', error);
+      return null;
+    })
+    .finally(() => {
+      globalThis.__melonbookAirtableHealthSync = undefined;
+    });
+
+  return 'started';
+}
 
 export async function GET() {
   try {
@@ -18,6 +44,8 @@ export async function GET() {
           (SELECT COUNT(*)::text FROM airtable_sync_status WHERE sync_error IS NOT NULL) as error_count
       `).catch(() => null),
     ]);
+    const airtableAutoSync = mirrorRow ? maybeStartAirtableHealthSync(mirrorRow.last_synced_at) : 'mirror_unavailable';
+
     return NextResponse.json({
       status: 'ok',
       version: '1.0.0',
@@ -28,6 +56,7 @@ export async function GET() {
         lastSyncedAt: mirrorRow.last_synced_at,
         errors: Number(mirrorRow.error_count || 0),
       } : null,
+      airtableAutoSync,
       timestamp: new Date().toISOString(),
       app: 'MelonBook — Raymon J Land',
       commit: process.env.RAILWAY_GIT_COMMIT_SHA || process.env.VERCEL_GIT_COMMIT_SHA || 'local',
