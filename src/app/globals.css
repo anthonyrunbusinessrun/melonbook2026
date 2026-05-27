@@ -82,6 +82,26 @@
   .sidebar-link.active {
     @apply text-brand-cream bg-brand-green/30 border-l-2 border-brand-sage;
   }
+
+  .brand-logo-wrap {
+    position: relative;
+  }
+
+  .brand-logo-dark {
+    display: block;
+  }
+
+  .brand-logo-light {
+    display: none;
+  }
+}
+
+html.light .brand-logo-dark {
+  display: none;
+}
+
+html.light .brand-logo-light {
+  display: block;
 }
 
 /* Dense table styles */

@@ -38,6 +38,7 @@ export default withAuth(
 
         if (
           path.startsWith('/login') ||
+          path.startsWith('/brand/') ||
           path.startsWith('/api/health') ||
           path.startsWith('/api/webhooks')
         ) {

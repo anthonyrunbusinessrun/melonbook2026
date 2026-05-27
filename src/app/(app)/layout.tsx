@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { signOut, useSession } from 'next-auth/react';
+import { BrandLogo } from '@/components/BrandLogo';
 import {
   AlertTriangle,
   ArrowLeftRight,
@@ -93,14 +94,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         }`}
       >
         <div className={`flex items-center gap-2.5 px-3 py-4 border-b border-brand-green/20 ${collapsed ? 'justify-center' : ''}`}>
-          <div className="w-7 h-7 bg-brand-midgreen rounded flex items-center justify-center shrink-0">
-            <span className="font-bold text-sm">🍉</span>
-          </div>
-          {!collapsed && (
-            <div className="min-w-0">
-              <div className="font-display text-brand-cream text-sm font-semibold leading-tight">MelonBook</div>
-              <div className="text-brand-sage/50 text-xs">Raymon J Land</div>
-            </div>
+          {collapsed ? (
+            <BrandLogo className="h-7 w-9 shrink-0" />
+          ) : (
+            <BrandLogo className="h-11 w-44 shrink-0" priority />
           )}
         </div>
 
