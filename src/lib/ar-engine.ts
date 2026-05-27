@@ -520,6 +520,323 @@ export async function exportARToExcel(report: ARReport): Promise<Buffer> {
 }
 
 // ============================================================
+// PDF EXPORT - print-ready legacy AR layout
+// ============================================================
+type PdfPage = { content: string[] };
+
+type PdfTextOptions = {
+  size?: number;
+  color?: string;
+  align?: 'left' | 'right' | 'center';
+  bold?: boolean;
+};
+
+function pdfEscape(value: unknown): string {
+  return String(value ?? '')
+    .replace(/\\/g, '\\\\')
+    .replace(/\(/g, '\\(')
+    .replace(/\)/g, '\\)')
+    .replace(/\r?\n/g, ' ');
+}
+
+function pdfColor(hex: string) {
+  const clean = hex.replace('#', '');
+  const r = parseInt(clean.slice(0, 2), 16) / 255;
+  const g = parseInt(clean.slice(2, 4), 16) / 255;
+  const b = parseInt(clean.slice(4, 6), 16) / 255;
+  return `${r.toFixed(3)} ${g.toFixed(3)} ${b.toFixed(3)}`;
+}
+
+function truncateForPdf(value: unknown, width: number, fontSize: number) {
+  const text = String(value ?? '');
+  const maxChars = Math.max(1, Math.floor(width / (fontSize * 0.48)));
+  return text.length > maxChars ? `${text.slice(0, Math.max(0, maxChars - 3))}...` : text;
+}
+
+function formatPdfMoney(value: number, blankZero = false) {
+  if (blankZero && Number(value || 0) === 0) return '';
+  const amount = Math.abs(Number(value || 0));
+  const formatted = new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 2,
+  }).format(amount);
+  return Number(value || 0) < 0 ? `(${formatted})` : formatted;
+}
+
+function formatPdfDate(value: Date | string | null) {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toLocaleDateString('en-US', {
+    month: '2-digit',
+    day: '2-digit',
+    year: '2-digit',
+  });
+}
+
+class SimplePdf {
+  readonly width = 1008; // Legal landscape: 14in x 8.5in
+  readonly height = 612;
+  readonly margin = 24;
+  readonly pages: PdfPage[] = [];
+  private currentPage: PdfPage | null = null;
+  private pageNo = 0;
+
+  addPage(title: string, subtitle: string) {
+    this.pageNo++;
+    this.currentPage = { content: [] };
+    this.pages.push(this.currentPage);
+
+    this.rect(this.margin, 18, this.width - this.margin * 2, 26, '#0D1A0A');
+    this.text(title, this.margin + 8, 35, this.width - this.margin * 2 - 16, {
+      size: 12,
+      color: '#F5F0E8',
+      align: 'center',
+      bold: true,
+    });
+    this.text(subtitle, this.margin, 56, this.width - this.margin * 2, {
+      size: 7,
+      color: '#2D4A22',
+      align: 'center',
+    });
+    this.text(`Page ${this.pageNo}`, this.width - this.margin - 70, this.height - 14, 70, {
+      size: 7,
+      color: '#2D4A22',
+      align: 'right',
+    });
+  }
+
+  private add(op: string) {
+    if (!this.currentPage) throw new Error('PDF page not initialized');
+    this.currentPage.content.push(op);
+  }
+
+  y(top: number) {
+    return this.height - top;
+  }
+
+  rect(x: number, top: number, w: number, h: number, fill: string, stroke?: string) {
+    const fillColor = pdfColor(fill);
+    const y = this.y(top + h);
+    this.add(`q ${fillColor} rg ${x.toFixed(2)} ${y.toFixed(2)} ${w.toFixed(2)} ${h.toFixed(2)} re f Q`);
+    if (stroke) {
+      const strokeColor = pdfColor(stroke);
+      this.add(`q ${strokeColor} RG 0.35 w ${x.toFixed(2)} ${y.toFixed(2)} ${w.toFixed(2)} ${h.toFixed(2)} re S Q`);
+    }
+  }
+
+  line(x1: number, top1: number, x2: number, top2: number, color = '#E8E0CC', width = 0.25) {
+    const strokeColor = pdfColor(color);
+    this.add(`q ${strokeColor} RG ${width} w ${x1.toFixed(2)} ${this.y(top1).toFixed(2)} m ${x2.toFixed(2)} ${this.y(top2).toFixed(2)} l S Q`);
+  }
+
+  text(value: unknown, x: number, baselineTop: number, width: number, options: PdfTextOptions = {}) {
+    const size = options.size ?? 7;
+    const color = pdfColor(options.color || '#0D1A0A');
+    const safe = truncateForPdf(value, width, size);
+    const approxWidth = String(safe).length * size * 0.48;
+    let tx = x;
+    if (options.align === 'right') tx = x + width - approxWidth;
+    if (options.align === 'center') tx = x + (width - approxWidth) / 2;
+    const ty = this.y(baselineTop);
+    const font = options.bold ? '/F2' : '/F1';
+    this.add(`BT ${font} ${size} Tf ${color} rg ${tx.toFixed(2)} ${ty.toFixed(2)} Td (${pdfEscape(safe)}) Tj ET`);
+  }
+
+  toBuffer() {
+    const objects: string[] = [];
+    objects[1] = '<< /Type /Catalog /Pages 2 0 R >>';
+    objects[3] = '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>';
+    objects[4] = '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>';
+
+    const kids: string[] = [];
+    let nextObjectId = 5;
+
+    for (const page of this.pages) {
+      const pageObjectId = nextObjectId++;
+      const contentObjectId = nextObjectId++;
+      kids.push(`${pageObjectId} 0 R`);
+      const stream = page.content.join('\n');
+      objects[pageObjectId] = `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${this.width} ${this.height}] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents ${contentObjectId} 0 R >>`;
+      objects[contentObjectId] = `<< /Length ${Buffer.byteLength(stream, 'utf8')} >>\nstream\n${stream}\nendstream`;
+    }
+
+    objects[2] = `<< /Type /Pages /Kids [${kids.join(' ')}] /Count ${this.pages.length} >>`;
+
+    let body = '%PDF-1.4\n';
+    const offsets = [0];
+    for (let i = 1; i < objects.length; i++) {
+      offsets[i] = Buffer.byteLength(body, 'utf8');
+      body += `${i} 0 obj\n${objects[i]}\nendobj\n`;
+    }
+    const xrefOffset = Buffer.byteLength(body, 'utf8');
+    body += `xref\n0 ${objects.length}\n`;
+    body += '0000000000 65535 f \n';
+    for (let i = 1; i < objects.length; i++) {
+      body += `${String(offsets[i]).padStart(10, '0')} 00000 n \n`;
+    }
+    body += `trailer\n<< /Size ${objects.length} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`;
+    return Buffer.from(body, 'utf8');
+  }
+}
+
+export async function exportARToPdf(report: ARReport): Promise<Buffer> {
+  const pdf = new SimplePdf();
+  const title = 'RAYMON J. LAND WATERMELON SALES - 2026 ACCOUNTS RECEIVABLE';
+  const subtitle = `DATE: ${report.reportDate.toLocaleDateString('en-US')}  |  Formulas: Total Invoiced = Invoiced + Invoice Credits; Balance Due = Total Invoiced + Unloading Fee + Adjustments - Amount Paid`;
+
+  const columns = [
+    { label: 'CUST ID', width: 42, key: (r: ARRow) => r.customerCode },
+    { label: 'DIV.', width: 28, key: (r: ARRow) => r.division || '' },
+    { label: 'Lot #', width: 35, key: (r: ARRow) => r.lotNo || '' },
+    { label: 'R #', width: 35, key: (r: ARRow) => r.rNo || '' },
+    { label: 'MISC.', width: 36, key: (r: ARRow) => r.miscPas || '' },
+    { label: 'PO #', width: 45, key: (r: ARRow) => r.poNo || '' },
+    { label: 'INV Date', width: 45, key: (r: ARRow) => formatPdfDate(r.invDate) },
+    { label: 'Dep #', width: 42, key: (r: ARRow) => r.depNo || '' },
+    { label: 'Dep Date', width: 45, key: (r: ARRow) => formatPdfDate(r.depDate) },
+    { label: '1st Check #', width: 50, key: (r: ARRow) => r.check1 || '' },
+    { label: '2nd Check #', width: 50, key: (r: ARRow) => r.check2 || '' },
+    { label: 'Invoiced', width: 60, key: (r: ARRow) => formatPdfMoney(r.invoiced), align: 'right' as const },
+    { label: 'Invoice Credits', width: 60, key: (r: ARRow) => formatPdfMoney(r.invoiceCredits, true), align: 'right' as const },
+    { label: 'Total Invoiced', width: 60, key: (r: ARRow) => formatPdfMoney(r.totalInvoiced), align: 'right' as const },
+    { label: 'Unloading Fee', width: 55, key: (r: ARRow) => formatPdfMoney(r.unloadingFee, true), align: 'right' as const },
+    { label: 'Adjustments', width: 55, key: (r: ARRow) => formatPdfMoney(r.adjustments, true), align: 'right' as const },
+    { label: 'Amount Paid', width: 60, key: (r: ARRow) => formatPdfMoney(r.amountPaid), align: 'right' as const },
+    { label: 'Balance Due', width: 60, key: (r: ARRow) => formatPdfMoney(r.balanceDue), align: 'right' as const },
+    { label: 'MEMO', width: 92, key: (r: ARRow) => r.memo || '' },
+  ];
+
+  const startX = pdf.margin;
+  const rowHeight = 14;
+  const headerHeight = 16;
+  const customerHeight = 17;
+  let y = 70;
+
+  function ensureSpace(height: number) {
+    if (pdf.pages.length === 0 || y + height > pdf.height - 28) {
+      pdf.addPage(title, subtitle);
+      y = 70;
+    }
+  }
+
+  function drawColumnHeader() {
+    let x = startX;
+    pdf.rect(startX, y, pdf.width - pdf.margin * 2, headerHeight, '#2D4A22', '#7AAD5E');
+    for (const col of columns) {
+      pdf.text(col.label, x + 2, y + 10.5, col.width - 4, {
+        size: col.label.length > 10 ? 5.3 : 6,
+        color: '#F5F0E8',
+        bold: true,
+        align: col.align || 'center',
+      });
+      pdf.line(x, y, x, y + headerHeight, '#7AAD5E');
+      x += col.width;
+    }
+    pdf.line(x, y, x, y + headerHeight, '#7AAD5E');
+    y += headerHeight;
+  }
+
+  function drawDataRow(row: ARRow, stripe: boolean) {
+    let x = startX;
+    if (stripe) pdf.rect(startX, y, pdf.width - pdf.margin * 2, rowHeight, '#F5F0E8');
+    for (const col of columns) {
+      const isBalance = col.label === 'Balance Due';
+      pdf.text(col.key(row), x + 2, y + 9.3, col.width - 4, {
+        size: 5.8,
+        color: isBalance && row.balanceDue > 0 ? '#C0392B' : '#0D1A0A',
+        bold: isBalance && row.balanceDue > 0,
+        align: col.align || 'left',
+      });
+      x += col.width;
+    }
+    pdf.line(startX, y + rowHeight, pdf.width - pdf.margin, y + rowHeight, '#E8E0CC', 0.2);
+    y += rowHeight;
+  }
+
+  function drawCustomerTotal(customer: CustomerARTotal) {
+    pdf.rect(startX, y, pdf.width - pdf.margin * 2, rowHeight + 2, '#E8C547', '#D4A820');
+    pdf.text(customer.customerName, startX + 221, y + 10, 180, { size: 6.8, color: '#0D1A0A', bold: true });
+    pdf.text('TOTAL:', startX + 403, y + 10, 45, { size: 6.8, color: '#0D1A0A', bold: true, align: 'right' });
+
+    const totalValues = [
+      { x: 453, value: customer.invoiced },
+      { x: 513, value: customer.invoiceCredits },
+      { x: 573, value: customer.totalInvoiced },
+      { x: 633, value: customer.unloadingFee },
+      { x: 688, value: customer.adjustments },
+      { x: 743, value: customer.amountPaid },
+      { x: 803, value: customer.balanceDue },
+    ];
+
+    for (const total of totalValues) {
+      pdf.text(formatPdfMoney(total.value, false), startX + total.x, y + 10, 58, {
+        size: 6.8,
+        color: '#0D1A0A',
+        bold: true,
+        align: 'right',
+      });
+    }
+    y += rowHeight + 8;
+  }
+
+  for (const customer of report.customers) {
+    ensureSpace(customerHeight + headerHeight + Math.min(customer.rows.length, 2) * rowHeight + rowHeight + 8);
+    pdf.rect(startX, y, pdf.width - pdf.margin * 2, customerHeight, '#1A2216', '#2D4A22');
+    pdf.text('Cust ID:', startX + 6, y + 11, 42, { size: 7, color: '#F5F0E8', bold: true });
+    pdf.text(customer.customerCode, startX + 52, y + 11, 72, { size: 8, color: '#7AAD5E', bold: true });
+    pdf.text(customer.customerName, startX + 150, y + 11, 330, { size: 8, color: '#F5F0E8', bold: true });
+    pdf.text(`${customer.rowCount} row(s)`, pdf.width - pdf.margin - 100, y + 11, 95, {
+      size: 7,
+      color: '#E8E0CC',
+      align: 'right',
+    });
+    y += customerHeight;
+    drawColumnHeader();
+
+    customer.rows.forEach((row, index) => {
+      ensureSpace(rowHeight + rowHeight + 8);
+      drawDataRow(row, index % 2 === 0);
+    });
+    ensureSpace(rowHeight + 12);
+    drawCustomerTotal(customer);
+  }
+
+  ensureSpace(30);
+  pdf.rect(startX, y, pdf.width - pdf.margin * 2, 22, '#E8C547', '#D4A820');
+  pdf.text('GRAND TOTALS', startX + 10, y + 14, 180, {
+    size: 10,
+    color: '#0D1A0A',
+    bold: true,
+  });
+  const grandValues = [
+    { label: 'Invoiced', x: 453, value: report.grandTotals.invoiced },
+    { label: 'Credits', x: 513, value: report.grandTotals.invoiceCredits },
+    { label: 'Total Inv', x: 573, value: report.grandTotals.totalInvoiced },
+    { label: 'Unload', x: 633, value: report.grandTotals.unloadingFee },
+    { label: 'Adj', x: 688, value: report.grandTotals.adjustments },
+    { label: 'Paid', x: 743, value: report.grandTotals.amountPaid },
+    { label: 'Balance', x: 803, value: report.grandTotals.balanceDue },
+  ];
+  for (const item of grandValues) {
+    pdf.text(item.label, startX + item.x, y + 8, 58, { size: 5.4, color: '#0D1A0A', bold: true, align: 'right' });
+    pdf.text(formatPdfMoney(item.value), startX + item.x, y + 17, 58, { size: 7, color: '#0D1A0A', bold: true, align: 'right' });
+  }
+
+  if (report.customers.length === 0) {
+    ensureSpace(40);
+    pdf.text('No AR data found. Run Airtable sync or add AR entries, then export again.', startX, y + 18, 520, {
+      size: 10,
+      color: '#C0392B',
+      bold: true,
+    });
+  }
+
+  return pdf.toBuffer();
+}
+
+// ============================================================
 // AR SUMMARY STATS
 // ============================================================
 export async function getARSummary(): Promise<{

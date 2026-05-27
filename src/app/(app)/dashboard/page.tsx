@@ -1,9 +1,10 @@
 export const dynamic = "force-dynamic";
-import { getARSummary, getMirrorARSummary } from '@/lib/ar-engine';
+import { buildARReport, getARSummary, getMirrorARSummary } from '@/lib/ar-engine';
 import { query } from '@/db';
 import {
   DollarSign, TrendingUp, AlertTriangle, RefreshCw,
   CheckCircle, XCircle, Clock, Users, FileText,
+  Table2, ClipboardList, Database, Printer, ArrowRight,
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -18,7 +19,17 @@ function fmtDate(d: string | Date | null) {
 
 export default async function DashboardPage() {
   // Parallel data fetching
-  const [arSummary, mirrorSummary, syncRuns, anomalies, recentVouchers] = await Promise.allSettled([
+  const [
+    arSummary,
+    mirrorSummary,
+    syncRuns,
+    anomalies,
+    recentVouchers,
+    mirrorCoverage,
+    tableHealth,
+    manualARSummary,
+    arReport,
+  ] = await Promise.allSettled([
     getARSummary(),
     getMirrorARSummary(),
     query<{ direction: string; started_at: string; completed_at: string; records_processed: number; error_message: string }>(
@@ -37,6 +48,56 @@ export default async function DashboardPage() {
        WHERE v.deleted_at IS NULL AND v.invoiced_amount > 0
        ORDER BY v.accrue_date DESC NULLS LAST LIMIT 8`
     ),
+    query<{
+      table_count: string;
+      field_count: string;
+      view_count: string;
+      record_count: string;
+      stale_count: string;
+      error_count: string;
+      last_records_synced_at: string | null;
+    }>(`
+      SELECT
+        COUNT(DISTINCT s.table_id)::text as table_count,
+        (SELECT COUNT(*)::text FROM airtable_fields) as field_count,
+        (SELECT COUNT(*)::text FROM airtable_views) as view_count,
+        COALESCE(SUM(s.record_count), 0)::text as record_count,
+        COUNT(*) FILTER (
+          WHERE s.records_synced_at IS NULL
+             OR s.records_synced_at < NOW() - INTERVAL '20 minutes'
+        )::text as stale_count,
+        COUNT(*) FILTER (WHERE s.sync_error IS NOT NULL)::text as error_count,
+        MAX(s.records_synced_at)::text as last_records_synced_at
+      FROM airtable_sync_status s
+    `),
+    query<{
+      table_id: string;
+      table_name: string;
+      record_count: number;
+      status: string;
+      records_synced_at: string | null;
+      sync_error: string | null;
+    }>(`
+      SELECT table_id, table_name, record_count, status, records_synced_at::text, sync_error
+      FROM airtable_sync_status
+      ORDER BY record_count DESC, table_name
+      LIMIT 10
+    `),
+    query<{
+      count: string;
+      total_invoiced: string;
+      total_paid: string;
+      balance_due: string;
+    }>(`
+      SELECT
+        COUNT(*)::text as count,
+        COALESCE(SUM(total_invoiced), 0)::text as total_invoiced,
+        COALESCE(SUM(amount_paid), 0)::text as total_paid,
+        COALESCE(SUM(balance_due), 0)::text as balance_due
+      FROM ar_manual_entries
+      WHERE entry_status <> 'void'
+    `),
+    buildARReport({ includeZeroBalance: false }),
   ]);
 
   const ar = arSummary.status === 'fulfilled' ? arSummary.value : {
@@ -48,9 +109,21 @@ export default async function DashboardPage() {
   const runs = syncRuns.status === 'fulfilled' ? syncRuns.value : [];
   const flags = anomalies.status === 'fulfilled' ? anomalies.value : [];
   const vouchers = recentVouchers.status === 'fulfilled' ? recentVouchers.value : [];
+  const coverage = mirrorCoverage.status === 'fulfilled' ? mirrorCoverage.value[0] : null;
+  const tables = tableHealth.status === 'fulfilled' ? tableHealth.value : [];
+  const manual = manualARSummary.status === 'fulfilled' ? manualARSummary.value[0] : null;
+  const topCustomers = arReport.status === 'fulfilled'
+    ? arReport.value.customers
+      .filter(customer => Math.abs(customer.balanceDue) > 0.01)
+      .sort((a, b) => Math.abs(b.balanceDue) - Math.abs(a.balanceDue))
+      .slice(0, 6)
+    : [];
 
   const lastSync = runs[0];
   const syncOk = lastSync && !lastSync.error_message;
+  const coverageRecordCount = Number(coverage?.record_count || 0);
+  const staleTableCount = Number(coverage?.stale_count || 0);
+  const errorTableCount = Number(coverage?.error_count || 0);
 
   return (
     <div className="p-6 space-y-6">
@@ -81,6 +154,37 @@ export default async function DashboardPage() {
         </div>
       </div>
 
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+        <ActionCard
+          title="Enter AR"
+          desc="Use the familiar spreadsheet columns and formulas."
+          href="/ar-input"
+          icon={ClipboardList}
+          tone="gold"
+        />
+        <ActionCard
+          title="Print AR Report"
+          desc="Export Excel or PDF for accounting review."
+          href="/ar-report"
+          icon={Printer}
+          tone="green"
+        />
+        <ActionCard
+          title="Review Airtable Tables"
+          desc="Every MelonBook 2026 table in an Airtable-style grid."
+          href="/data-explorer"
+          icon={Table2}
+          tone="sage"
+        />
+        <ActionCard
+          title="Check Sync"
+          desc="Confirm Railway Postgres is matching Airtable."
+          href="/sync"
+          icon={Database}
+          tone={errorTableCount > 0 || staleTableCount > 0 ? 'red' : 'green'}
+        />
+      </div>
+
       {mirror && mirror.transactionRecordCount > 0 && (
         <div className="card p-4 flex items-center justify-between gap-4 flex-wrap">
           <div>
@@ -96,6 +200,35 @@ export default async function DashboardPage() {
           </div>
         </div>
       )}
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <StatCard
+          label="Airtable Tables"
+          value={Number(coverage?.table_count || 0).toLocaleString()}
+          icon={Table2}
+          color="sage"
+        />
+        <StatCard
+          label="Airtable Fields"
+          value={Number(coverage?.field_count || 0).toLocaleString()}
+          icon={Database}
+          color="warm"
+        />
+        <StatCard
+          label="Mirrored Records"
+          value={coverageRecordCount.toLocaleString()}
+          icon={Database}
+          color={coverageRecordCount > 0 ? 'green' : 'gold'}
+          highlight={coverageRecordCount === 0}
+        />
+        <StatCard
+          label="Tables Need Attention"
+          value={(staleTableCount + errorTableCount).toLocaleString()}
+          icon={AlertTriangle}
+          color={staleTableCount + errorTableCount > 0 ? 'red' : 'sage'}
+          highlight={staleTableCount + errorTableCount > 0}
+        />
+      </div>
 
       {/* AR Stats */}
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
@@ -191,6 +324,36 @@ export default async function DashboardPage() {
 
         {/* Right column: Sync + Anomalies */}
         <div className="space-y-4">
+          <div className="card">
+            <div className="px-4 py-3 border-b border-brand-green/20 flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-brand-cream">Largest Open Balances</h2>
+              <Link href="/ar-report" className="text-xs text-brand-sage hover:text-brand-cream transition-colors">
+                Open AR →
+              </Link>
+            </div>
+            <div className="p-3 space-y-2">
+              {topCustomers.length === 0 ? (
+                <div className="text-center py-4 text-brand-sage/40 text-xs">No open balances found yet</div>
+              ) : (
+                topCustomers.map(customer => (
+                  <Link
+                    key={customer.customerCode}
+                    href={`/ar-report?customer=${encodeURIComponent(customer.customerCode)}`}
+                    className="flex items-center justify-between gap-3 rounded border border-brand-green/10 bg-brand-dark/20 px-3 py-2 hover:border-brand-sage/30 transition-colors"
+                  >
+                    <div>
+                      <div className="text-xs font-mono text-brand-sage">{customer.customerCode}</div>
+                      <div className="text-xs text-brand-warm/60 truncate max-w-[180px]">{customer.customerName}</div>
+                    </div>
+                    <div className={`text-xs font-mono font-semibold ${customer.balanceDue > 0 ? 'text-brand-gold' : 'text-brand-brightred'}`}>
+                      {fmt(customer.balanceDue)}
+                    </div>
+                  </Link>
+                ))
+              )}
+            </div>
+          </div>
+
           {/* Sync Runs */}
           <div className="card">
             <div className="px-4 py-3 border-b border-brand-green/20">
@@ -257,6 +420,118 @@ export default async function DashboardPage() {
           </div>
         </div>
       </div>
+
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
+        <div className="xl:col-span-2 card">
+          <div className="px-4 py-3 border-b border-brand-green/20 flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-brand-cream">Airtable Table Coverage</h2>
+            <Link href="/data-explorer" className="text-xs text-brand-sage hover:text-brand-cream transition-colors">
+              Browse all tables →
+            </Link>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="ops-table">
+              <thead>
+                <tr>
+                  <th>Table</th>
+                  <th className="text-right">Records</th>
+                  <th>Status</th>
+                  <th>Records Synced</th>
+                  <th>Open</th>
+                </tr>
+              </thead>
+              <tbody>
+                {tables.length === 0 ? (
+                  <tr><td colSpan={5} className="text-center py-8 text-brand-sage/40">No Airtable mirror status yet. Run a full mirror sync.</td></tr>
+                ) : (
+                  tables.map(table => (
+                    <tr key={table.table_id}>
+                      <td>
+                        <div className="font-medium text-brand-cream">{table.table_name}</div>
+                        <div className="font-mono text-[10px] text-brand-warm/35">{table.table_id}</div>
+                        {table.sync_error && <div className="text-[10px] text-brand-brightred mt-1">{table.sync_error}</div>}
+                      </td>
+                      <td className="text-right font-mono">{Number(table.record_count || 0).toLocaleString()}</td>
+                      <td>
+                        <span className={table.sync_error ? 'badge-red' : table.status === 'ok' ? 'badge-green' : table.status === 'running' ? 'badge-gold' : 'badge-gray'}>
+                          {table.sync_error ? 'error' : table.status}
+                        </span>
+                      </td>
+                      <td className="text-brand-warm/50">{fmtDate(table.records_synced_at)}</td>
+                      <td>
+                        <Link href={`/data-explorer?table=${table.table_id}`} className="text-brand-sage hover:text-brand-cream text-xs">
+                          View
+                        </Link>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div className="card p-4">
+          <h2 className="text-sm font-semibold text-brand-cream">Accounting Snapshot</h2>
+          <p className="text-xs text-brand-sage/55 mt-1">
+            AR numbers are pulled from synced Postgres data and checked against Airtable accounting views.
+          </p>
+          <div className="space-y-3 mt-4">
+            <MiniMetric label="Manual AR Entries" value={Number(manual?.count || 0).toLocaleString()} />
+            <MiniMetric label="Manual AR Total" value={fmt(Number(manual?.total_invoiced || 0))} />
+            <MiniMetric label="Manual AR Paid" value={fmt(Number(manual?.total_paid || 0))} />
+            <MiniMetric label="Manual AR Balance" value={fmt(Number(manual?.balance_due || 0))} important />
+            <MiniMetric label="Last Airtable Mirror" value={fmtDate(coverage?.last_records_synced_at || null)} />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ActionCard({
+  title,
+  desc,
+  href,
+  icon: Icon,
+  tone,
+}: {
+  title: string;
+  desc: string;
+  href: string;
+  icon: React.ElementType;
+  tone: 'green' | 'sage' | 'gold' | 'red';
+}) {
+  const toneMap = {
+    green: 'text-brand-sage border-brand-sage/20',
+    sage: 'text-brand-sage/80 border-brand-green/20',
+    gold: 'text-brand-gold border-brand-gold/25',
+    red: 'text-brand-brightred border-brand-red/30',
+  };
+
+  return (
+    <Link href={href} className={`card p-4 border ${toneMap[tone]} hover:border-brand-sage/40 transition-colors group`}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-start gap-3">
+          <div className="w-9 h-9 rounded bg-brand-dark flex items-center justify-center shrink-0">
+            <Icon size={17} className={toneMap[tone].split(' ')[0]} />
+          </div>
+          <div>
+            <div className="text-sm font-semibold text-brand-cream">{title}</div>
+            <div className="text-xs text-brand-warm/55 mt-1 leading-relaxed">{desc}</div>
+          </div>
+        </div>
+        <ArrowRight size={14} className="text-brand-sage/35 group-hover:text-brand-sage shrink-0 mt-1" />
+      </div>
+    </Link>
+  );
+}
+
+function MiniMetric({ label, value, important }: { label: string; value: React.ReactNode; important?: boolean }) {
+  return (
+    <div className="flex items-center justify-between gap-3 border-b border-brand-green/10 pb-2 last:border-b-0">
+      <span className="text-xs text-brand-warm/55">{label}</span>
+      <span className={`text-xs font-mono font-semibold ${important ? 'text-brand-gold' : 'text-brand-cream'}`}>{value}</span>
     </div>
   );
 }

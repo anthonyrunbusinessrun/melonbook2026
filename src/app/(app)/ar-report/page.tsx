@@ -25,6 +25,11 @@ export default async function ARReportPage({
   const sp = await searchParams;
   const includeZeroBalance = sp.showPaid === 'true';
   const customerFilter = sp.customer ? sp.customer.split(',').map(s => s.trim()) : undefined;
+  const exportParams = new URLSearchParams();
+  if (sp.customer) exportParams.set('customer', sp.customer);
+  if (sp.date) exportParams.set('date', sp.date);
+  if (includeZeroBalance) exportParams.set('showPaid', 'true');
+  const exportQuery = exportParams.toString() ? `?${exportParams.toString()}` : '';
 
   let report;
   let mirrorSummary: Awaited<ReturnType<typeof getMirrorARSummary>> | null = null;
@@ -121,11 +126,18 @@ export default async function ARReportPage({
         </div>
         <div className="flex items-center gap-2">
           <a
-            href="/api/ar/export"
+            href={`/api/ar/export${exportQuery}`}
             className="btn-gold flex items-center gap-1.5 text-sm"
           >
             <Download size={14} />
             Export Excel
+          </a>
+          <a
+            href={`/api/ar/export/pdf${exportQuery}`}
+            className="btn-secondary flex items-center gap-1.5 text-sm"
+          >
+            <Download size={14} />
+            Export PDF
           </a>
           <Link href="/ar-report" className="btn-secondary flex items-center gap-1.5 text-sm">
             <RefreshCw size={13} />
