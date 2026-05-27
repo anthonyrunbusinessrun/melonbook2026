@@ -41,9 +41,6 @@ export default function LoginPage() {
             <span className="text-3xl">🍉</span>
           </div>
           <h1 className="font-display text-3xl font-semibold text-brand-cream">MelonBook</h1>
-          <p className="text-brand-sage/60 text-sm mt-1">
-            Raymon J Land Internal Operations
-          </p>
         </div>
 
         {/* Login form */}
