@@ -1,8 +1,9 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { signIn } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
-import { Eye, EyeOff, Lock, Mail, Loader2 } from 'lucide-react';
+import { Eye, EyeOff, Lock, Mail, Loader2, Moon, Sun } from 'lucide-react';
+import { BrandLogo } from '@/components/BrandLogo';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -11,6 +12,24 @@ export default function LoginPage() {
   const [showPw, setShowPw] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [theme, setTheme] = useState<'dark' | 'light'>('dark');
+
+  useEffect(() => {
+    const saved = window.localStorage.getItem('melonbook-theme') as 'dark' | 'light' | null;
+    const preferred = window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+    applyTheme(saved || preferred);
+  }, []);
+
+  function applyTheme(next: 'dark' | 'light') {
+    setTheme(next);
+    window.localStorage.setItem('melonbook-theme', next);
+    document.documentElement.classList.toggle('light', next === 'light');
+    document.documentElement.setAttribute('data-theme', next);
+  }
+
+  function toggleTheme() {
+    applyTheme(theme === 'dark' ? 'light' : 'dark');
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -30,17 +49,23 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-brand-dark flex items-center justify-center p-4">
+    <div className="min-h-screen bg-brand-dark flex items-center justify-center p-4" data-theme={theme}>
       {/* Background texture */}
       <div className="fixed inset-0 bg-grid-dark bg-grid opacity-30 pointer-events-none" />
+      <button
+        type="button"
+        onClick={toggleTheme}
+        className="fixed right-4 top-4 z-10 btn-secondary inline-flex items-center gap-2 px-3 py-2 text-xs shadow-lg"
+        title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+      >
+        {theme === 'dark' ? <Sun size={14} /> : <Moon size={14} />}
+        <span>{theme === 'dark' ? 'Light mode' : 'Dark mode'}</span>
+      </button>
 
       <div className="relative w-full max-w-sm">
         {/* Brand header */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-14 h-14 bg-brand-midgreen rounded-xl mb-4 shadow-lg shadow-brand-green/20">
-            <span className="text-3xl">🍉</span>
-          </div>
-          <h1 className="font-display text-3xl font-semibold text-brand-cream">MelonBook</h1>
+          <BrandLogo className="mx-auto h-20 w-72 max-w-full" priority />
         </div>
 
         {/* Login form */}
