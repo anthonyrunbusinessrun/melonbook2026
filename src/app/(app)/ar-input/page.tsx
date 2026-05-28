@@ -201,6 +201,10 @@ export default function ARInputPage() {
             <RefreshCw size={14} />
             Refresh
           </button>
+          <a href="/api/ar/manual/export/excel" className="btn-secondary flex items-center gap-1.5 text-sm">
+            <FileSpreadsheet size={14} />
+            Manual AR Excel
+          </a>
           <a href="/api/ar/manual/export/pdf" className="btn-gold flex items-center gap-1.5 text-sm">
             <Download size={14} />
             Manual AR PDF

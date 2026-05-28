@@ -485,91 +485,134 @@ export async function exportARToExcel(report: ARReport): Promise<Buffer> {
   wb.creator = 'MelonBook';
   wb.created = new Date();
 
-  const ws = wb.addWorksheet('AR Report', {
-    pageSetup: { orientation: 'landscape', fitToPage: true, fitToWidth: 1 },
+  const ws = wb.addWorksheet('2026 AR Report  ', {
+    pageSetup: {
+      orientation: 'landscape',
+      fitToPage: true,
+      fitToWidth: 1,
+      fitToHeight: 0,
+      paperSize: 5,
+      horizontalCentered: true,
+    },
+    views: [{ state: 'frozen', ySplit: 3, xSplit: 0, topLeftCell: 'A4' }],
   });
 
-  // Brand colors
-  const headerFill: ExcelJS.Fill = {
-    type: 'pattern', pattern: 'solid',
-    fgColor: { argb: 'FF2D4A22' },
+  ws.pageSetup.margins = {
+    left: 0.16,
+    right: 0,
+    top: 0.5,
+    bottom: 0.5,
+    header: 0.3,
+    footer: 0.3,
   };
-  const custHeaderFill: ExcelJS.Fill = {
-    type: 'pattern', pattern: 'solid',
-    fgColor: { argb: 'FF1A2216' },
-  };
-  const totalFill: ExcelJS.Fill = {
-    type: 'pattern', pattern: 'solid',
-    fgColor: { argb: 'FF7AAD5E' },
-  };
-  const grandFill: ExcelJS.Fill = {
-    type: 'pattern', pattern: 'solid',
-    fgColor: { argb: 'FFE8C547' },
-  };
-  const whiteTxt = { argb: 'FFFFFFFF' };
-  const darkTxt = { argb: 'FF0D1A0A' };
+  ws.headerFooter.oddHeader = '&LPage #&P&C RAYMON J. LAND INC. ACCOUNTS RECEIVABLE 2026                                                                &D';
 
-  // Column definitions
   const cols: Partial<ExcelJS.Column>[] = [
-    { header: 'CUST ID',          key: 'custId',         width: 10 },
-    { header: 'DIV.',             key: 'div',            width: 8  },
-    { header: 'Lot #',            key: 'lotNo',          width: 8  },
-    { header: 'R #',              key: 'rNo',            width: 8  },
-    { header: 'MISC.',            key: 'misc',           width: 10 },
-    { header: 'PO #',             key: 'poNo',           width: 12 },
-    { header: 'INV Date',         key: 'invDate',        width: 12 },
-    { header: 'Dep #',            key: 'depNo',          width: 12 },
-    { header: 'Dep Date',         key: 'depDate',        width: 12 },
-    { header: '1st Check #',      key: 'check1',         width: 14 },
-    { header: '2nd Check #',      key: 'check2',         width: 14 },
-    { header: 'Invoiced',         key: 'invoiced',       width: 14 },
-    { header: 'Invoice Credits',  key: 'invoiceCredits', width: 14 },
-    { header: 'Total Invoiced',   key: 'totalInvoiced',  width: 14 },
-    { header: 'Unloading Fee',    key: 'unloadingFee',   width: 14 },
-    { header: 'Adjustments',      key: 'adjustments',    width: 12 },
-    { header: 'Amount Paid',      key: 'amountPaid',     width: 14 },
-    { header: 'Balance Due',      key: 'balanceDue',     width: 14 },
-    { header: 'MEMO',             key: 'memo',           width: 20 },
+    { key: 'custId',         width: 7.29  },
+    { key: 'div',            width: 3.71  },
+    { key: 'lotNo',          width: 5.57  },
+    { key: 'rNo',            width: 5.57  },
+    { key: 'misc',           width: 4.57  },
+    { key: 'poNo',           width: 11.71 },
+    { key: 'invDate',        width: 7.86  },
+    { key: 'depNo',          width: 12.29 },
+    { key: 'depDate',        width: 14.71 },
+    { key: 'check1',         width: 12.57 },
+    { key: 'check2',         width: 9.71  },
+    { key: 'invoiced',       width: 14.14 },
+    { key: 'invoiceCredits', width: 12.43 },
+    { key: 'totalInvoiced',  width: 14.14 },
+    { key: 'unloadingFee',   width: 11.86 },
+    { key: 'adjustments',    width: 12.43 },
+    { key: 'amountPaid',     width: 15.00 },
+    { key: 'balanceDue',     width: 15.29 },
+    { key: 'memo',           width: 21.71 },
   ];
 
   ws.columns = cols;
+  ws.mergeCells('C1:Q1');
+  ws.mergeCells('C2:Q2');
+  ws.getRow(1).height = 22.5;
+  ws.getRow(2).height = 14.25;
+  ws.getRow(3).height = 15.75;
 
-  // Title row
-  ws.mergeCells('A1:S1');
-  const titleCell = ws.getCell('A1');
-  titleCell.value = `RAYMON J LAND WATERMELON SALES — AR REPORT  DATE: ${report.reportDate.toLocaleDateString()}`;
-  titleCell.font = { name: 'Cormorant Garamond', size: 14, bold: true, color: whiteTxt };
-  titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0D1A0A' } };
-  titleCell.alignment = { horizontal: 'center', vertical: 'middle' };
-  ws.getRow(1).height = 24;
+  ws.getCell('R2').value = 'DATE ';
+  ws.getCell('S2').value = report.reportDate;
+  ws.getCell('R2').font = { name: 'Calibri', size: 9, bold: true };
+  ws.getCell('S2').font = { name: 'Calibri', size: 9, bold: true };
+  ws.getCell('R2').numFmt = 'mm-dd-yy';
+  ws.getCell('S2').numFmt = 'mm-dd-yy';
 
-  let currentRow = 2;
-  const money = (v: number) => ({ numFmt: '"$"#,##0.00', value: v });
-  const dateVal = (d: Date | null) => d ? { value: d, numFmt: 'mm/dd/yy' } : { value: '' };
+  const headers = ['CUST ID','DIV.','Lot #','R #','MISC.','PO #','INV Date','Dep #','Dep Date','1st Check #','2nd Check #','Invoiced','Invoice Credits','Total Invoiced','Unloading Fee','Adjustments','Amount Paid','Balance Due','MEMO'];
+  const thinBorder: Partial<ExcelJS.Borders> = {
+    top: { style: 'thin' },
+    left: { style: 'thin' },
+    bottom: { style: 'thin' },
+    right: { style: 'thin' },
+  };
+  const moneyAccounting = '_("$"* #,##0.00_);_("$"* \\(#,##0.00\\);_("$"* "-"??_);_(@_)';
+  const numberRed = '#,##0.00_);[Red](#,##0.00)';
+  const baseFont = { name: 'Calibri', size: 9 };
 
+  const setHeaderRow = (rowNumber: number) => {
+    const row = ws.getRow(rowNumber);
+    row.values = headers;
+    row.height = 15.75;
+    row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+      if (colNumber > 19) return;
+      cell.font = { name: 'Calibri', size: colNumber === 2 ? 8 : 9, bold: true };
+      cell.border = thinBorder;
+      cell.alignment = {
+        horizontal: [5, 6, 7, 8, 9].includes(colNumber) ? (colNumber === 5 ? 'center' : 'left') : undefined,
+        vertical: 'middle',
+      };
+      if (colNumber === 6) cell.numFmt = '@';
+      if ([7, 9].includes(colNumber)) cell.numFmt = 'm/d/yy';
+      if ([12, 18, 19].includes(colNumber)) cell.numFmt = moneyAccounting;
+      if ([13, 14, 15, 16, 17].includes(colNumber)) cell.numFmt = numberRed;
+    });
+  };
+
+  const styleDataRow = (rowNumber: number) => {
+    const row = ws.getRow(rowNumber);
+    row.height = 14.25;
+    row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+      if (colNumber > 19) return;
+      cell.font = { ...baseFont, size: colNumber === 2 || colNumber === 9 ? 8 : 9 };
+      cell.border = thinBorder;
+      cell.alignment = {
+        horizontal: [5].includes(colNumber) ? 'center' : undefined,
+        vertical: 'middle',
+      };
+      if (colNumber === 6) cell.numFmt = '@';
+      if ([7, 9].includes(colNumber)) cell.numFmt = 'm/d/yy';
+      if ([12, 18, 19].includes(colNumber)) cell.numFmt = moneyAccounting;
+      if ([13, 14, 15, 16, 17].includes(colNumber)) cell.numFmt = numberRed;
+    });
+  };
+
+  setHeaderRow(3);
+  let currentRow = 4;
+  const totalRows: number[] = [];
   for (const cust of report.customers) {
-    // Customer label row
-    ws.mergeCells(`A${currentRow}:D${currentRow}`);
-    const labelCell = ws.getCell(`A${currentRow}`);
-    labelCell.value = `Cust ID: ${cust.customerCode}  —  ${cust.customerName}`;
-    labelCell.font = { bold: true, color: whiteTxt, size: 10 };
-    labelCell.fill = custHeaderFill;
-    ws.getRow(currentRow).height = 18;
-    currentRow++;
-
-    // Column headers
-    const hdrRow = ws.getRow(currentRow);
-    hdrRow.values = ['CUST ID','DIV.','Lot #','R #','MISC.','PO #','INV Date','Dep #','Dep Date','1st Check #','2nd Check #','Invoiced','Invoice Credits','Total Invoiced','Unloading Fee','Adjustments','Amount Paid','Balance Due','MEMO'];
-    hdrRow.eachCell(cell => {
-      cell.font = { bold: true, size: 8, color: whiteTxt };
-      cell.fill = headerFill;
-      cell.alignment = { horizontal: 'center' };
-      cell.border = { bottom: { style: 'thin', color: { argb: 'FF7AAD5E' } } };
+    const customerRow = ws.getRow(currentRow);
+    customerRow.height = 14.25;
+    customerRow.getCell(1).value = 'Cust ID:';
+    customerRow.getCell(3).value = cust.customerCode;
+    if (cust.customerCode === 'FOOLIO') customerRow.getCell(4).value = '(Need BOL)';
+    customerRow.getCell(7).value = cust.customerName;
+    customerRow.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+      if (colNumber > 19) return;
+      cell.font = { name: 'Calibri', size: colNumber === 7 ? 12 : 9, bold: colNumber === 7 };
+      cell.border = thinBorder;
+      if ([7, 9].includes(colNumber)) cell.numFmt = 'm/d/yy';
     });
     currentRow++;
 
-    // Data rows
+    setHeaderRow(currentRow);
+    currentRow++;
     const dataStartRow = currentRow;
+
     for (const row of cust.rows) {
       const dataRow = ws.getRow(currentRow);
       dataRow.values = [
@@ -585,37 +628,27 @@ export async function exportARToExcel(report: ARReport): Promise<Buffer> {
         row.check1 || '',
         row.check2 || '',
         row.invoiced,
-        row.invoiceCredits,
-        { formula: `L${currentRow}+M${currentRow}`, result: row.totalInvoiced },
+        row.invoiceCredits || '',
+        { formula: `+L${currentRow}+M${currentRow}`, result: row.totalInvoiced },
         row.unloadingFee || '',
         row.adjustments || '',
-        row.amountPaid,
-        { formula: `N${currentRow}+O${currentRow}+P${currentRow}-Q${currentRow}`, result: row.balanceDue },
+        row.amountPaid || '',
+        { formula: `+N${currentRow}+O${currentRow}+P${currentRow}-Q${currentRow}`, result: row.balanceDue },
         row.memo || '',
       ];
-
-      // Format dates
-      dataRow.getCell(7).numFmt = 'mm/dd/yy';
-      dataRow.getCell(9).numFmt = 'mm/dd/yy';
-      // Format currency cols L-R
-      [12,13,14,15,16,17,18].forEach(col => {
-        const c = dataRow.getCell(col);
-        c.numFmt = '"$"#,##0.00';
-      });
-
-      // Highlight balance due if > 0
-      const balCell = dataRow.getCell(18);
-      if (row.balanceDue > 0) {
-        balCell.font = { bold: true, color: { argb: 'FFC0392B' } };
+      styleDataRow(currentRow);
+      if (String(row.miscPas || '').toUpperCase().includes('REJ')) {
+        dataRow.getCell(3).font = { name: 'Calibri', size: 9, color: { argb: 'FFC00000' } };
+        dataRow.getCell(5).font = { name: 'Calibri', size: 9, color: { argb: 'FFC00000' } };
       }
-
-      dataRow.height = 15;
       currentRow++;
     }
-    const dataEndRow = currentRow - 1;
+
+    const dataEndRow = Math.max(dataStartRow, currentRow - 1);
 
     // Customer total row
     const totRow = ws.getRow(currentRow);
+    totRow.height = 15.75;
     totRow.getCell(7).value = cust.customerName;
     totRow.getCell(10).value = 'TOTAL:';
     totRow.getCell(12).value = { formula: `SUM(L${dataStartRow}:L${dataEndRow})`, result: cust.invoiced };
@@ -625,38 +658,45 @@ export async function exportARToExcel(report: ARReport): Promise<Buffer> {
     totRow.getCell(16).value = { formula: `SUM(P${dataStartRow}:P${dataEndRow})`, result: cust.adjustments };
     totRow.getCell(17).value = { formula: `SUM(Q${dataStartRow}:Q${dataEndRow})`, result: cust.amountPaid };
     totRow.getCell(18).value = { formula: `SUM(R${dataStartRow}:R${dataEndRow})`, result: cust.balanceDue };
-
-    totRow.eachCell(cell => {
-      cell.fill = totalFill;
-      cell.font = { bold: true, color: darkTxt, size: 9 };
+    totRow.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+      if (colNumber > 19) return;
+      cell.font = { name: 'Calibri', size: 9, bold: true };
+      cell.border = thinBorder;
+      if ([12, 18, 19].includes(colNumber)) cell.numFmt = moneyAccounting;
+      if ([13, 14, 15, 16, 17].includes(colNumber)) cell.numFmt = numberRed;
     });
-    [12,13,14,15,16,17,18].forEach(col => {
-      totRow.getCell(col).numFmt = '"$"#,##0.00';
-    });
-    totRow.getCell(10).font = { bold: true, color: darkTxt };
-    currentRow += 3; // spacing between customers
+    totalRows.push(currentRow);
+    currentRow += 3;
   }
 
-  // Grand total
-  const gtRow = ws.getRow(currentRow);
-  gtRow.getCell(7).value = 'GRAND TOTALS';
-  gtRow.getCell(12).value = report.grandTotals.invoiced;
-  gtRow.getCell(13).value = report.grandTotals.invoiceCredits;
-  gtRow.getCell(14).value = report.grandTotals.totalInvoiced;
-  gtRow.getCell(15).value = report.grandTotals.unloadingFee;
-  gtRow.getCell(16).value = report.grandTotals.adjustments;
-  gtRow.getCell(17).value = report.grandTotals.amountPaid;
-  gtRow.getCell(18).value = report.grandTotals.balanceDue;
-  gtRow.eachCell(cell => {
-    cell.fill = grandFill;
-    cell.font = { bold: true, color: darkTxt, size: 11 };
-  });
-  [12,13,14,15,16,17,18].forEach(col => {
-    gtRow.getCell(col).numFmt = '"$"#,##0.00';
-  });
+  if (report.customers.length > 1) {
+    const gtRow = ws.getRow(currentRow);
+    gtRow.height = 15.75;
+    gtRow.getCell(7).value = 'GRAND TOTALS';
+    gtRow.getCell(10).value = 'TOTAL:';
+    for (const col of [12, 13, 14, 15, 16, 17, 18]) {
+      const letter = ws.getColumn(col).letter;
+      gtRow.getCell(col).value = {
+        formula: totalRows.map(rowNumber => `${letter}${rowNumber}`).join('+'),
+        result: col === 12 ? report.grandTotals.invoiced :
+          col === 13 ? report.grandTotals.invoiceCredits :
+          col === 14 ? report.grandTotals.totalInvoiced :
+          col === 15 ? report.grandTotals.unloadingFee :
+          col === 16 ? report.grandTotals.adjustments :
+          col === 17 ? report.grandTotals.amountPaid :
+          report.grandTotals.balanceDue,
+      };
+    }
+    gtRow.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+      if (colNumber > 19) return;
+      cell.font = { name: 'Calibri', size: 9, bold: true };
+      cell.border = thinBorder;
+      if ([12, 18, 19].includes(colNumber)) cell.numFmt = moneyAccounting;
+      if ([13, 14, 15, 16, 17].includes(colNumber)) cell.numFmt = numberRed;
+    });
+  }
 
-  // Freeze top rows
-  ws.views = [{ state: 'frozen', ySplit: 2 }];
+  ws.getColumn(6).numFmt = '@';
 
   return wb.xlsx.writeBuffer() as unknown as Promise<Buffer>;
 }
