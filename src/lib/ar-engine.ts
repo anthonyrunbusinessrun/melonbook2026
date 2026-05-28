@@ -308,20 +308,28 @@ export async function buildManualARReport(
   options: {
     asOfDate?: Date;
     customerCodes?: string[];
+    entryIds?: string[];
     includeZeroBalance?: boolean;
   } = {}
 ): Promise<ARReport> {
-  const { asOfDate = new Date(), customerCodes, includeZeroBalance = true } = options;
+  const { asOfDate, customerCodes, entryIds, includeZeroBalance = true } = options;
   const params: unknown[] = [];
   const whereParts = [`entry_status <> 'void'`];
+
+  if (entryIds?.length) {
+    params.push(entryIds);
+    whereParts.push(`id::text = ANY($${params.length})`);
+  }
 
   if (customerCodes?.length) {
     params.push(customerCodes.map(code => code.toUpperCase()));
     whereParts.push(`customer_code = ANY($${params.length})`);
   }
 
-  params.push(asOfDate);
-  whereParts.push(`(inv_date IS NULL OR inv_date <= $${params.length})`);
+  if (asOfDate) {
+    params.push(asOfDate);
+    whereParts.push(`(inv_date IS NULL OR inv_date <= $${params.length})`);
+  }
 
   const rows = await query<{
     id: string;
@@ -443,7 +451,7 @@ export async function buildManualARReport(
     { invoiced: 0, invoiceCredits: 0, totalInvoiced: 0, unloadingFee: 0, adjustments: 0, amountPaid: 0, balanceDue: 0 }
   );
 
-  return { reportDate: asOfDate, customers, grandTotals };
+  return { reportDate: asOfDate || new Date(), customers, grandTotals };
 }
 
 // Fallback: build from denormalized voucher amounts when transaction join yields nothing

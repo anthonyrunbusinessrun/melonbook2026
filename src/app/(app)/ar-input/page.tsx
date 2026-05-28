@@ -389,13 +389,14 @@ export default function ARInputPage() {
                 <th className="text-right">Paid</th>
                 <th className="text-right">Balance</th>
                 <th>Memo</th>
+                <th className="text-right">Export</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={19} className="text-center py-10 text-brand-sage/50">Loading entries...</td></tr>
+                <tr><td colSpan={20} className="text-center py-10 text-brand-sage/50">Loading entries...</td></tr>
               ) : entries.length === 0 ? (
-                <tr><td colSpan={19} className="text-center py-10 text-brand-sage/50">No manual AR entries yet.</td></tr>
+                <tr><td colSpan={20} className="text-center py-10 text-brand-sage/50">No manual AR entries yet.</td></tr>
               ) : entries.map(entry => (
                 <tr key={entry.id}>
                   <td className="font-mono text-brand-sage">{entry.customer_code}</td>
@@ -417,6 +418,26 @@ export default function ARInputPage() {
                   <td className="text-right font-mono text-brand-sage">{money(entry.amount_paid)}</td>
                   <td className={`text-right font-mono font-semibold ${Number(entry.balance_due) > 0 ? 'text-brand-gold' : 'text-brand-sage'}`}>{money(entry.balance_due)}</td>
                   <td className="max-w-xs truncate text-brand-warm/55">{entry.memo || ''}</td>
+                  <td>
+                    <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
+                      <a
+                        href={`/api/ar/manual/export/excel?entryId=${encodeURIComponent(entry.id)}&showPaid=true`}
+                        className="btn-secondary inline-flex h-7 items-center gap-1 px-2 text-xs"
+                        title="Export this entry as Excel"
+                      >
+                        <FileSpreadsheet size={12} />
+                        XLSX
+                      </a>
+                      <a
+                        href={`/api/ar/manual/export/pdf?entryId=${encodeURIComponent(entry.id)}&showPaid=true`}
+                        className="btn-gold inline-flex h-7 items-center gap-1 px-2 text-xs"
+                        title="Export this entry as PDF"
+                      >
+                        <Download size={12} />
+                        PDF
+                      </a>
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
