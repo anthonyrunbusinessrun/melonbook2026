@@ -9,19 +9,23 @@ import {
   AlertTriangle,
   ArrowLeftRight,
   BarChart3,
+  Building2,
   ChevronLeft,
   ChevronRight,
   Database,
   FilePlus2,
   FileText,
+  Gauge,
   Layout,
   LayoutDashboard,
   Layers,
   LogOut,
   Moon,
   Package,
+  PlusCircle,
   Receipt,
   RefreshCw,
+  Search,
   Settings,
   ShoppingCart,
   Sun,
@@ -32,43 +36,47 @@ import {
 } from 'lucide-react';
 
 const nav = [
-  { href: '/dashboard',     icon: LayoutDashboard, label: 'Dashboard',       group: 'accounting' },
-  { href: '/ar-report',     icon: FileText,        label: 'AR Report',       group: 'accounting' },
-  { href: '/ar-input',      icon: FilePlus2,       label: 'AR Input',        group: 'accounting' },
-  { href: '/transactions',  icon: ArrowLeftRight,  label: 'Transactions',    group: 'accounting' },
-  { href: '/accounts',      icon: BarChart3,       label: 'Accounts',        group: 'accounting' },
-  { href: '/vouchers',      icon: Receipt,         label: 'Vouchers',        group: 'accounting' },
-  { href: '/contacts',      icon: Users,           label: 'Contacts',        group: 'ops' },
-  { href: '/loads',         icon: Truck,           label: 'Loads / Folios',  group: 'ops' },
-  { href: '/batches',       icon: Layers,          label: 'Batches',         group: 'ops' },
-  { href: '/inventory',     icon: Package,         label: 'Inventory',       group: 'ops' },
-  { href: '/items',         icon: ShoppingCart,    label: 'Items',           group: 'ops' },
-  { href: '/forms-list',    icon: Layout,          label: 'Forms',           group: 'ops' },
-  { href: '/encoder',       icon: Zap,             label: 'Encoder Station', group: 'tools' },
-  { href: '/data-explorer', icon: Database,        label: 'Airtable Grid',   group: 'tools' },
-  { href: '/anomalies',     icon: AlertTriangle,   label: 'Anomalies',       group: 'tools' },
-  { href: '/sync',          icon: RefreshCw,       label: 'Sync Center',     group: 'system' },
-  { href: '/admin',         icon: Settings,        label: 'Admin',           group: 'system' },
+  { href: '/dashboard',     icon: LayoutDashboard, label: 'Business Overview', group: 'overview' },
+  { href: '/ar-input',      icon: FilePlus2,       label: 'Create AR Entry',   group: 'moneyIn', primary: true },
+  { href: '/ar-report',     icon: FileText,        label: 'AR & Statements',   group: 'moneyIn' },
+  { href: '/transactions',  icon: ArrowLeftRight,  label: 'Transactions',      group: 'moneyIn' },
+  { href: '/customers',     icon: Building2,       label: 'Customers',         group: 'moneyIn' },
+  { href: '/vouchers',      icon: Receipt,         label: 'Vouchers',          group: 'moneyOut' },
+  { href: '/accounts',      icon: BarChart3,       label: 'Chart of Accounts', group: 'moneyOut' },
+  { href: '/contacts',      icon: Users,           label: 'Contacts',          group: 'moneyOut' },
+  { href: '/inventory',     icon: Package,         label: 'Inventory',         group: 'operations' },
+  { href: '/items',         icon: ShoppingCart,    label: 'Items',             group: 'operations' },
+  { href: '/loads',         icon: Truck,           label: 'Loads / Folios',    group: 'operations' },
+  { href: '/batches',       icon: Layers,          label: 'Batches',           group: 'operations' },
+  { href: '/forms-list',    icon: Layout,          label: 'Forms',             group: 'operations' },
+  { href: '/encoder',       icon: Zap,             label: 'Encoder Station',   group: 'tools' },
+  { href: '/data-explorer', icon: Database,        label: 'All Airtable Tables', group: 'tools' },
+  { href: '/anomalies',     icon: AlertTriangle,   label: 'Review Flags',      group: 'tools' },
+  { href: '/sync',          icon: RefreshCw,       label: 'Sync Center',       group: 'system' },
+  { href: '/admin',         icon: Settings,        label: 'Users & Admin',     group: 'system' },
 ];
 
 const GROUP_LABELS: Record<string, string> = {
-  accounting: 'Accounting',
-  ops: 'Operations',
-  tools: 'Tools',
-  system: 'System',
+  overview: 'Home',
+  moneyIn: 'Money in',
+  moneyOut: 'Money out',
+  operations: 'Farm operations',
+  tools: 'Work tools',
+  system: 'Company settings',
 };
+
+const GROUP_ORDER = ['overview', 'moneyIn', 'moneyOut', 'operations', 'tools', 'system'];
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { data: session } = useSession();
   const role = String((session?.user as { role?: string } | undefined)?.role || 'user');
   const [collapsed, setCollapsed] = useState(false);
-  const [theme, setTheme] = useState<'dark' | 'light'>('dark');
+  const [theme, setTheme] = useState<'dark' | 'light'>('light');
 
   useEffect(() => {
     const saved = window.localStorage.getItem('melonbook-theme') as 'dark' | 'light' | null;
-    const preferred = window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
-    const initial = saved || preferred;
+    const initial = saved || 'light';
 
     setTheme(initial);
     document.documentElement.classList.toggle('light', initial === 'light');
@@ -87,25 +95,40 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const visibleNav = nav.filter(item => role === 'admin' || item.href !== '/admin');
 
   return (
-    <div className="flex h-screen overflow-hidden bg-brand-dark" data-theme={theme}>
+    <div className="accounting-shell flex h-screen overflow-hidden bg-brand-dark" data-theme={theme}>
       <aside
-        className={`flex flex-col border-r border-brand-green/20 bg-brand-forest shrink-0 transition-all duration-200 ${
+        className={`accounting-sidebar flex flex-col border-r border-brand-green/20 bg-brand-forest shrink-0 transition-all duration-200 ${
           collapsed ? 'w-14' : 'w-64'
         }`}
       >
-        <div className={`flex items-center gap-2.5 px-3 py-4 border-b border-brand-green/20 ${collapsed ? 'justify-center' : ''}`}>
+        <div className={`flex items-center gap-2.5 px-3 py-3 border-b border-brand-green/20 ${collapsed ? 'justify-center' : ''}`}>
           {collapsed ? (
             <BrandLogo className="h-7 w-9 shrink-0" />
           ) : (
-            <BrandLogo className="h-11 w-44 shrink-0" priority />
+            <div className="min-w-0">
+              <BrandLogo className="h-10 w-44 shrink-0" priority />
+              <div className="mt-1 flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wide text-brand-sage/55">
+                <Gauge size={11} />
+                Accounting workspace
+              </div>
+            </div>
           )}
         </div>
 
-        <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-0.5">
-          {['accounting', 'ops', 'tools', 'system'].map(group => (
-            <div key={group}>
+        {!collapsed && (
+          <div className="px-3 py-3 border-b border-brand-green/20">
+            <Link href="/ar-input" className="create-button flex w-full items-center justify-center gap-2">
+              <PlusCircle size={15} />
+              New transaction
+            </Link>
+          </div>
+        )}
+
+        <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-1">
+          {GROUP_ORDER.map(group => (
+            <div key={group} className="nav-section">
               {!collapsed && (
-                <div className="text-[10px] font-semibold text-brand-sage/40 uppercase tracking-widest px-2 pt-3 pb-1">
+                <div className="nav-group-label">
                   {GROUP_LABELS[group]}
                 </div>
               )}
@@ -120,8 +143,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                   >
                     <item.icon size={15} className={active ? 'text-brand-sage' : ''} />
                     {!collapsed && <span className="truncate">{item.label}</span>}
-                    {!collapsed && item.href === '/encoder' && (
-                      <span className="ml-auto text-[9px] bg-brand-gold/20 text-brand-gold px-1 rounded">NEW</span>
+                    {!collapsed && item.primary && (
+                      <span className="ml-auto rounded bg-brand-gold/20 px-1.5 py-0.5 text-[9px] font-semibold text-brand-gold">FAST</span>
                     )}
                   </Link>
                 );
@@ -182,23 +205,64 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       </aside>
 
       <main className="flex-1 min-w-0 overflow-hidden flex flex-col">
-        <header className="h-12 shrink-0 border-b border-brand-green/20 bg-brand-forest/80 px-4 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2 min-w-0">
-            <Link href="/ar-input" className="btn-gold h-8 px-3 text-xs inline-flex items-center gap-1.5">
-              <FilePlus2 size={13} />
-              AR Input
-            </Link>
-            <Link href="/data-explorer" className="btn-secondary h-8 px-3 text-xs inline-flex items-center gap-1.5">
-              <Database size={13} />
-              Airtable Grid
-            </Link>
-            <Link href="/encoder" className="btn-secondary h-8 px-3 text-xs inline-flex items-center gap-1.5">
-              <Zap size={13} />
-              Encoder Station
-            </Link>
+        <header className="accounting-topbar h-14 shrink-0 border-b border-brand-green/20 bg-brand-forest/80 px-4 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0 flex-1">
+            <details className="quick-create relative shrink-0">
+              <summary className="create-button flex cursor-pointer list-none items-center gap-2 px-3">
+                <PlusCircle size={15} />
+                New
+              </summary>
+              <div className="quick-create-menu">
+                <Link href="/ar-input" className="quick-create-item">
+                  <FilePlus2 size={14} />
+                  AR entry
+                </Link>
+                <Link href="/encoder" className="quick-create-item">
+                  <Zap size={14} />
+                  Guided encoder
+                </Link>
+                <Link href="/vouchers" className="quick-create-item">
+                  <Receipt size={14} />
+                  Voucher
+                </Link>
+                <Link href="/data-explorer" className="quick-create-item">
+                  <Database size={14} />
+                  Airtable table record
+                </Link>
+              </div>
+            </details>
+
+            <form action="/data-explorer" className="quick-search hidden md:flex">
+              <Search size={15} className="text-brand-sage/65" />
+              <input
+                name="q"
+                aria-label="Search MelonBook"
+                placeholder="Search customers, lots, transactions, vouchers..."
+                className="min-w-0 flex-1 bg-transparent text-sm text-brand-cream outline-none placeholder:text-brand-sage/35"
+              />
+            </form>
+
+            <div className="hidden xl:flex items-center gap-2">
+              <Link href="/transactions" className="topbar-link">
+                <ArrowLeftRight size={13} />
+                Transactions
+              </Link>
+              <Link href="/ar-report" className="topbar-link">
+                <FileText size={13} />
+                Reports
+              </Link>
+              <Link href="/sync" className="topbar-link">
+                <RefreshCw size={13} />
+                Sync
+              </Link>
+            </div>
           </div>
-          <div className="flex items-center gap-2 text-xs">
-            <span className="hidden md:inline text-brand-sage/55 truncate max-w-64">{session?.user?.email || 'Staff user'}</span>
+          <div className="flex items-center gap-2 text-xs shrink-0">
+            <Link href="/sync" className="hidden lg:inline-flex items-center gap-1.5 rounded-full border border-brand-green/25 bg-brand-dark/35 px-2.5 py-1.5 text-brand-sage">
+              <span className="h-1.5 w-1.5 rounded-full bg-brand-sage sync-pulse" />
+              Live sync
+            </Link>
+            <span className="hidden md:inline text-brand-sage/55 truncate max-w-56">{session?.user?.email || 'Staff user'}</span>
             <button
               onClick={toggleTheme}
               className="btn-secondary h-8 px-2 inline-flex items-center"
@@ -216,7 +280,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             </button>
           </div>
         </header>
-        <div className="flex-1 overflow-auto">{children}</div>
+        <div className="app-workspace flex-1 overflow-auto">{children}</div>
       </main>
     </div>
   );

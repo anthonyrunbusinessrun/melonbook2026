@@ -94,6 +94,76 @@
   .brand-logo-light {
     display: none;
   }
+
+  .accounting-shell {
+    background:
+      linear-gradient(180deg, rgba(13, 26, 10, 0.98), rgba(13, 26, 10, 1)),
+      #0D1A0A;
+  }
+
+  .accounting-sidebar {
+    background:
+      linear-gradient(180deg, rgba(13, 26, 10, 0.98), rgba(26, 34, 22, 0.98)),
+      #1A2216;
+  }
+
+  .accounting-topbar {
+    background: rgba(26, 34, 22, 0.94);
+    backdrop-filter: blur(14px);
+  }
+
+  .app-workspace {
+    background:
+      radial-gradient(circle at top left, rgba(122, 173, 94, 0.08), transparent 34rem),
+      #0D1A0A;
+  }
+
+  .nav-section {
+    @apply pb-1;
+  }
+
+  .nav-group-label {
+    @apply px-2 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-widest text-brand-sage/45;
+  }
+
+  .create-button {
+    @apply h-9 rounded bg-brand-sage px-3 text-sm font-semibold text-brand-dark
+      hover:bg-brand-gold transition-colors;
+  }
+
+  .quick-create-menu {
+    @apply absolute left-0 top-11 z-50 w-56 overflow-hidden rounded-md border border-brand-green/20 bg-brand-forest shadow-xl;
+  }
+
+  .quick-create-item {
+    @apply flex items-center gap-2 border-b border-brand-green/10 px-3 py-2.5 text-sm text-brand-warm/80
+      last:border-b-0 hover:bg-brand-green/20 hover:text-brand-cream;
+  }
+
+  .quick-search {
+    @apply h-9 min-w-0 max-w-xl flex-1 items-center gap-2 rounded border border-brand-green/25 bg-brand-dark/45 px-3;
+  }
+
+  .topbar-link {
+    @apply inline-flex h-8 items-center gap-1.5 rounded px-2.5 text-xs font-medium text-brand-sage/70
+      hover:bg-brand-green/15 hover:text-brand-cream;
+  }
+
+  .workbench-hero {
+    @apply rounded-lg border border-brand-green/20 bg-brand-forest p-5;
+  }
+
+  .workflow-card {
+    @apply rounded-lg border border-brand-green/20 bg-brand-forest p-4 transition-colors hover:border-brand-sage/45;
+  }
+
+  .workflow-card .workflow-icon {
+    @apply flex h-9 w-9 items-center justify-center rounded bg-brand-dark text-brand-sage;
+  }
+
+  .ledger-card {
+    @apply rounded-lg border border-brand-green/20 bg-brand-forest p-4;
+  }
 }
 
 html.light .brand-logo-dark {
@@ -141,12 +211,108 @@ html.light {
 
 html.light .bg-brand-dark,
 html.light .bg-brand-forest {
-  background-color: #F5F0E8;
+  background-color: #F6F7F2;
+}
+
+html.light .accounting-shell {
+  background: #F3F5EF;
+}
+
+html.light .app-workspace {
+  background:
+    linear-gradient(180deg, #F7F8F3, #EEF2EA 52%, #F5F0E8),
+    #F3F5EF;
+}
+
+html.light .accounting-sidebar {
+  background:
+    linear-gradient(180deg, #0D3B2E, #0D2F25 65%, #10251F),
+    #0D3B2E;
+  border-right-color: rgba(13, 26, 10, 0.16);
+}
+
+html.light .accounting-sidebar .text-brand-cream,
+html.light .accounting-sidebar .text-brand-warm,
+html.light .accounting-sidebar .text-brand-warm\/70,
+html.light .accounting-sidebar .hover\:text-brand-cream:hover {
+  color: #F5F0E8;
+}
+
+html.light .accounting-sidebar .text-brand-sage,
+html.light .accounting-sidebar .text-brand-sage\/45,
+html.light .accounting-sidebar .text-brand-sage\/55,
+html.light .accounting-sidebar .text-brand-sage\/60 {
+  color: rgba(245, 240, 232, 0.70);
+}
+
+html.light .accounting-sidebar .sidebar-link {
+  color: rgba(245, 240, 232, 0.78);
+}
+
+html.light .accounting-sidebar .sidebar-link:hover {
+  background-color: rgba(245, 240, 232, 0.10);
+  color: #FFFFFF;
+}
+
+html.light .accounting-sidebar .sidebar-link.active {
+  color: #FFFFFF;
+  background-color: rgba(245, 240, 232, 0.15);
+  border-left-color: #7AAD5E;
+}
+
+html.light .accounting-topbar {
+  background: rgba(255, 253, 247, 0.94);
+  backdrop-filter: blur(14px);
+}
+
+html.light .quick-search {
+  background-color: #F7F8F3;
+  border-color: rgba(13, 26, 10, 0.14);
+}
+
+html.light .quick-search input {
+  color: #0D1A0A;
+}
+
+html.light .quick-search input::placeholder {
+  color: rgba(13, 26, 10, 0.40);
+}
+
+html.light .quick-create-menu {
+  background-color: #FFFDF7;
+  border-color: rgba(13, 26, 10, 0.14);
+  box-shadow: 0 16px 34px rgba(13, 26, 10, 0.16);
+}
+
+html.light .quick-create-item {
+  color: rgba(13, 26, 10, 0.78);
+  border-bottom-color: rgba(13, 26, 10, 0.08);
+}
+
+html.light .quick-create-item:hover {
+  background-color: rgba(122, 173, 94, 0.16);
+  color: #0D1A0A;
+}
+
+html.light .topbar-link {
+  color: rgba(13, 26, 10, 0.68);
+}
+
+html.light .topbar-link:hover {
+  background-color: rgba(122, 173, 94, 0.16);
+  color: #0D1A0A;
 }
 
 html.light .bg-brand-dark\/40,
 html.light .bg-brand-dark\/60 {
   background-color: rgba(237, 231, 213, 0.72);
+}
+
+html.light .bg-brand-dark\/20,
+html.light .bg-brand-dark\/25,
+html.light .bg-brand-dark\/30,
+html.light .bg-brand-dark\/35 {
+  background-color: rgba(237, 231, 213, 0.58);
 }
 
 html.light .bg-brand-green\/10,
@@ -203,10 +369,18 @@ html.light .border-brand-green\/40 {
 }
 
 html.light .card,
-html.light .stat-card {
+html.light .stat-card,
+html.light .workbench-hero,
+html.light .workflow-card,
+html.light .ledger-card {
   background-color: #FFFDF7;
   border-color: rgba(45, 74, 34, 0.20);
   box-shadow: 0 1px 2px rgba(13, 26, 10, 0.05);
+}
+
+html.light .workflow-card .workflow-icon {
+  background-color: rgba(122, 173, 94, 0.14);
+  color: #2D4A22;
 }
 
 html.light .input,

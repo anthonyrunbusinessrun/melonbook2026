@@ -126,64 +126,84 @@ export default async function DashboardPage() {
   const errorTableCount = Number(coverage?.error_count || 0);
 
   return (
-    <div className="p-6 space-y-6">
-      {/* Header */}
-      <div className="flex items-start justify-between">
-        <div>
-          <h1 className="font-display text-3xl font-semibold text-brand-cream">Operations Dashboard</h1>
-          <p className="text-brand-sage/60 text-sm mt-1">
-            Raymon J Land Watermelon Sales & Land Truck Brokers — {new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
-          </p>
+    <div className="mx-auto max-w-[1800px] p-4 md:p-6 space-y-5">
+      <section className="workbench-hero">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+          <div>
+            <div className="label mb-2">Today</div>
+            <h1 className="text-2xl md:text-3xl font-semibold text-brand-cream">Business Overview</h1>
+            <p className="text-brand-sage/60 text-sm mt-1">
+              Raymon J Land Watermelon Sales & Land Truck Brokers · {new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            {syncOk ? (
+              <span className="flex items-center gap-1.5 rounded-full border border-brand-green/20 bg-brand-dark/30 px-3 py-1.5 text-brand-sage text-xs">
+                <span className="w-2 h-2 bg-brand-sage rounded-full sync-pulse" />
+                Synced {fmtDate(lastSync.completed_at)}
+              </span>
+            ) : (
+              <span className="flex items-center gap-1.5 rounded-full border border-brand-gold/25 bg-brand-gold/10 px-3 py-1.5 text-brand-gold text-xs">
+                <span className="w-2 h-2 bg-brand-gold rounded-full" />
+                Sync status unknown
+              </span>
+            )}
+            <Link href="/sync" className="btn-secondary text-xs py-1.5">
+              <RefreshCw size={12} className="inline mr-1" />
+              Sync Center
+            </Link>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          {syncOk ? (
-            <span className="flex items-center gap-1.5 text-brand-sage text-xs">
-              <span className="w-2 h-2 bg-brand-sage rounded-full sync-pulse" />
-              Synced {fmtDate(lastSync.completed_at)}
-            </span>
-          ) : (
-            <span className="flex items-center gap-1.5 text-brand-gold text-xs">
-              <span className="w-2 h-2 bg-brand-gold rounded-full" />
-              Sync status unknown
-            </span>
-          )}
-          <Link href="/sync" className="btn-secondary text-xs py-1.5">
-            <RefreshCw size={12} className="inline mr-1" />
-            Sync Center
+
+        <div className="mt-5 grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <HeroMetric label="Open AR Balance" value={fmt(ar.totalBalance)} tone={ar.totalBalance > 0 ? 'gold' : 'sage'} />
+          <HeroMetric label="Invoiced" value={fmt(ar.totalInvoiced)} tone="cream" />
+          <HeroMetric label="Paid" value={fmt(ar.totalPaid)} tone="sage" />
+          <HeroMetric label="Mirrored Records" value={coverageRecordCount.toLocaleString()} tone={coverageRecordCount > 0 ? 'sage' : 'gold'} />
+        </div>
+      </section>
+
+      <section>
+        <div className="flex items-center justify-between gap-3 mb-3">
+          <div>
+            <h2 className="text-sm font-semibold text-brand-cream">Get Work Done</h2>
+            <p className="text-xs text-brand-sage/55 mt-1">Fast entry, review, export, and sync checks for the accounting desk.</p>
+          </div>
+          <Link href="/encoder" className="btn-secondary hidden sm:inline-flex text-xs py-1.5">
+            Guided encoder
           </Link>
         </div>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
-        <ActionCard
-          title="Enter AR"
-          desc="Use the familiar spreadsheet columns and formulas."
-          href="/ar-input"
-          icon={ClipboardList}
-          tone="gold"
-        />
-        <ActionCard
-          title="Print AR Report"
-          desc="Export Excel or PDF for accounting review."
-          href="/ar-report"
-          icon={Printer}
-          tone="green"
-        />
-        <ActionCard
-          title="Review Airtable Tables"
-          desc="Every MelonBook 2026 table in an Airtable-style grid."
-          href="/data-explorer"
-          icon={Table2}
-          tone="sage"
-        />
-        <ActionCard
-          title="Check Sync"
-          desc="Confirm Railway Postgres is matching Airtable."
-          href="/sync"
-          icon={Database}
-          tone={errorTableCount > 0 || staleTableCount > 0 ? 'red' : 'green'}
-        />
-      </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+          <ActionCard
+            title="Create AR Entry"
+            desc="Enter or import the legacy A-S spreadsheet columns."
+            href="/ar-input"
+            icon={ClipboardList}
+            tone="gold"
+          />
+          <ActionCard
+            title="Print Statements"
+            desc="Export Excel or PDF for accounting review."
+            href="/ar-report"
+            icon={Printer}
+            tone="green"
+          />
+          <ActionCard
+            title="Find Transactions"
+            desc="Search synced Transaction records in a table view."
+            href="/transactions"
+            icon={Table2}
+            tone="sage"
+          />
+          <ActionCard
+            title="Check Sync"
+            desc="Confirm Railway Postgres is matching Airtable."
+            href="/sync"
+            icon={Database}
+            tone={errorTableCount > 0 || staleTableCount > 0 ? 'red' : 'green'}
+          />
+        </div>
+      </section>
 
       {mirror && mirror.transactionRecordCount > 0 && (
         <div className="card p-4 flex items-center justify-between gap-4 flex-wrap">
@@ -510,10 +530,10 @@ function ActionCard({
   };
 
   return (
-    <Link href={href} className={`card p-4 border ${toneMap[tone]} hover:border-brand-sage/40 transition-colors group`}>
+    <Link href={href} className={`workflow-card ${toneMap[tone]} group`}>
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-start gap-3">
-          <div className="w-9 h-9 rounded bg-brand-dark flex items-center justify-center shrink-0">
+          <div className="workflow-icon shrink-0">
             <Icon size={17} className={toneMap[tone].split(' ')[0]} />
           </div>
           <div>
@@ -524,6 +544,16 @@ function ActionCard({
         <ArrowRight size={14} className="text-brand-sage/35 group-hover:text-brand-sage shrink-0 mt-1" />
       </div>
     </Link>
+  );
+}
+
+function HeroMetric({ label, value, tone }: { label: string; value: string; tone: 'cream' | 'sage' | 'gold' }) {
+  const toneClass = tone === 'gold' ? 'text-brand-gold' : tone === 'sage' ? 'text-brand-sage' : 'text-brand-cream';
+  return (
+    <div className="rounded-lg border border-brand-green/15 bg-brand-dark/25 px-4 py-3">
+      <div className="label">{label}</div>
+      <div className={`mt-1 font-mono text-lg font-semibold tabular-nums ${toneClass}`}>{value}</div>
+    </div>
   );
 }
 
